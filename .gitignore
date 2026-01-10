@@ -1,0 +1,12 @@
+# Rust
+/target/
+
+# Swift/Xcode
+SpeedReader/build/
+*.xcuserdata
+
+# Generated (keep tracked for easier builds)
+# /generated/
+
+# macOS
+.DS_Store

@@ -1,0 +1,16 @@
+[package]
+name = "speed-reader-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib"]
+name = "speed_reader_core"
+
+[dependencies]
+swift-bridge = "0.1"
+arboard = "3.4"
+unicode-segmentation = "1.11"
+
+[build-dependencies]
+swift-bridge-build = "0.1"

@@ -1,0 +1,220 @@
+public struct WordToken {
+    public var text: RustString
+    public var index: UInt32
+    public var total: UInt32
+    public var display_time_ms: UInt32
+
+    public init(text: RustString,index: UInt32,total: UInt32,display_time_ms: UInt32) {
+        self.text = text
+        self.index = index
+        self.total = total
+        self.display_time_ms = display_time_ms
+    }
+
+    @inline(__always)
+    func intoFfiRepr() -> __swift_bridge__$WordToken {
+        { let val = self; return __swift_bridge__$WordToken(text: { let rustString = val.text.intoRustString(); rustString.isOwned = false; return rustString.ptr }(), index: val.index, total: val.total, display_time_ms: val.display_time_ms); }()
+    }
+}
+extension __swift_bridge__$WordToken {
+    @inline(__always)
+    func intoSwiftRepr() -> WordToken {
+        { let val = self; return WordToken(text: RustString(ptr: val.text), index: val.index, total: val.total, display_time_ms: val.display_time_ms); }()
+    }
+}
+extension __swift_bridge__$Option$WordToken {
+    @inline(__always)
+    func intoSwiftRepr() -> Optional<WordToken> {
+        if self.is_some {
+            return self.val.intoSwiftRepr()
+        } else {
+            return nil
+        }
+    }
+
+    @inline(__always)
+    static func fromSwiftRepr(_ val: Optional<WordToken>) -> __swift_bridge__$Option$WordToken {
+        if let v = val {
+            return __swift_bridge__$Option$WordToken(is_some: true, val: v.intoFfiRepr())
+        } else {
+            return __swift_bridge__$Option$WordToken(is_some: false, val: __swift_bridge__$WordToken())
+        }
+    }
+}
+public struct PlaybackConfig {
+    public var wpm: UInt32
+    public var pause_on_punctuation: Bool
+    public var punctuation_multiplier: Float
+
+    public init(wpm: UInt32,pause_on_punctuation: Bool,punctuation_multiplier: Float) {
+        self.wpm = wpm
+        self.pause_on_punctuation = pause_on_punctuation
+        self.punctuation_multiplier = punctuation_multiplier
+    }
+
+    @inline(__always)
+    func intoFfiRepr() -> __swift_bridge__$PlaybackConfig {
+        { let val = self; return __swift_bridge__$PlaybackConfig(wpm: val.wpm, pause_on_punctuation: val.pause_on_punctuation, punctuation_multiplier: val.punctuation_multiplier); }()
+    }
+}
+extension __swift_bridge__$PlaybackConfig {
+    @inline(__always)
+    func intoSwiftRepr() -> PlaybackConfig {
+        { let val = self; return PlaybackConfig(wpm: val.wpm, pause_on_punctuation: val.pause_on_punctuation, punctuation_multiplier: val.punctuation_multiplier); }()
+    }
+}
+extension __swift_bridge__$Option$PlaybackConfig {
+    @inline(__always)
+    func intoSwiftRepr() -> Optional<PlaybackConfig> {
+        if self.is_some {
+            return self.val.intoSwiftRepr()
+        } else {
+            return nil
+        }
+    }
+
+    @inline(__always)
+    static func fromSwiftRepr(_ val: Optional<PlaybackConfig>) -> __swift_bridge__$Option$PlaybackConfig {
+        if let v = val {
+            return __swift_bridge__$Option$PlaybackConfig(is_some: true, val: v.intoFfiRepr())
+        } else {
+            return __swift_bridge__$Option$PlaybackConfig(is_some: false, val: __swift_bridge__$PlaybackConfig())
+        }
+    }
+}
+
+public class SpeedReader: SpeedReaderRefMut {
+    var isOwned: Bool = true
+
+    public override init(ptr: UnsafeMutableRawPointer) {
+        super.init(ptr: ptr)
+    }
+
+    deinit {
+        if isOwned {
+            __swift_bridge__$SpeedReader$_free(ptr)
+        }
+    }
+}
+extension SpeedReader {
+    public convenience init() {
+        self.init(ptr: __swift_bridge__$SpeedReader$new())
+    }
+}
+public class SpeedReaderRefMut: SpeedReaderRef {
+    public override init(ptr: UnsafeMutableRawPointer) {
+        super.init(ptr: ptr)
+    }
+}
+extension SpeedReaderRefMut {
+    public func read_clipboard() -> Optional<RustString> {
+        { let val = __swift_bridge__$SpeedReader$read_clipboard(ptr); if val != nil { return RustString(ptr: val!) } else { return nil } }()
+    }
+
+    public func has_clipboard_text() -> Bool {
+        __swift_bridge__$SpeedReader$has_clipboard_text(ptr)
+    }
+
+    public func load_text<GenericIntoRustString: IntoRustString>(_ text: GenericIntoRustString) {
+        __swift_bridge__$SpeedReader$load_text(ptr, { let rustString = text.intoRustString(); rustString.isOwned = false; return rustString.ptr }())
+    }
+
+    public func set_config(_ config: PlaybackConfig) {
+        __swift_bridge__$SpeedReader$set_config(ptr, config.intoFfiRepr())
+    }
+
+    public func advance() -> Optional<WordToken> {
+        __swift_bridge__$SpeedReader$advance(ptr).intoSwiftRepr()
+    }
+
+    public func go_back() -> Optional<WordToken> {
+        __swift_bridge__$SpeedReader$go_back(ptr).intoSwiftRepr()
+    }
+
+    public func seek_to(_ index: UInt32) -> Optional<WordToken> {
+        __swift_bridge__$SpeedReader$seek_to(ptr, index).intoSwiftRepr()
+    }
+
+    public func reset() {
+        __swift_bridge__$SpeedReader$reset(ptr)
+    }
+}
+public class SpeedReaderRef {
+    var ptr: UnsafeMutableRawPointer
+
+    public init(ptr: UnsafeMutableRawPointer) {
+        self.ptr = ptr
+    }
+}
+extension SpeedReaderRef {
+    public func get_word_count() -> UInt32 {
+        __swift_bridge__$SpeedReader$get_word_count(ptr)
+    }
+
+    public func get_current_word() -> Optional<WordToken> {
+        __swift_bridge__$SpeedReader$get_current_word(ptr).intoSwiftRepr()
+    }
+
+    public func is_at_start() -> Bool {
+        __swift_bridge__$SpeedReader$is_at_start(ptr)
+    }
+
+    public func is_at_end() -> Bool {
+        __swift_bridge__$SpeedReader$is_at_end(ptr)
+    }
+
+    public func get_progress_percent() -> Float {
+        __swift_bridge__$SpeedReader$get_progress_percent(ptr)
+    }
+}
+extension SpeedReader: Vectorizable {
+    public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
+        __swift_bridge__$Vec_SpeedReader$new()
+    }
+
+    public static func vecOfSelfFree(vecPtr: UnsafeMutableRawPointer) {
+        __swift_bridge__$Vec_SpeedReader$drop(vecPtr)
+    }
+
+    public static func vecOfSelfPush(vecPtr: UnsafeMutableRawPointer, value: SpeedReader) {
+        __swift_bridge__$Vec_SpeedReader$push(vecPtr, {value.isOwned = false; return value.ptr;}())
+    }
+
+    public static func vecOfSelfPop(vecPtr: UnsafeMutableRawPointer) -> Optional<Self> {
+        let pointer = __swift_bridge__$Vec_SpeedReader$pop(vecPtr)
+        if pointer == nil {
+            return nil
+        } else {
+            return (SpeedReader(ptr: pointer!) as! Self)
+        }
+    }
+
+    public static func vecOfSelfGet(vecPtr: UnsafeMutableRawPointer, index: UInt) -> Optional<SpeedReaderRef> {
+        let pointer = __swift_bridge__$Vec_SpeedReader$get(vecPtr, index)
+        if pointer == nil {
+            return nil
+        } else {
+            return SpeedReaderRef(ptr: pointer!)
+        }
+    }
+
+    public static func vecOfSelfGetMut(vecPtr: UnsafeMutableRawPointer, index: UInt) -> Optional<SpeedReaderRefMut> {
+        let pointer = __swift_bridge__$Vec_SpeedReader$get_mut(vecPtr, index)
+        if pointer == nil {
+            return nil
+        } else {
+            return SpeedReaderRefMut(ptr: pointer!)
+        }
+    }
+
+    public static func vecOfSelfAsPtr(vecPtr: UnsafeMutableRawPointer) -> UnsafePointer<SpeedReaderRef> {
+        UnsafePointer<SpeedReaderRef>(OpaquePointer(__swift_bridge__$Vec_SpeedReader$as_ptr(vecPtr)))
+    }
+
+    public static func vecOfSelfLen(vecPtr: UnsafeMutableRawPointer) -> UInt {
+        __swift_bridge__$Vec_SpeedReader$len(vecPtr)
+    }
+}
+
+
+
