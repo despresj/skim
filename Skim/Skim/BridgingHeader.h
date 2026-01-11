@@ -2,6 +2,6 @@
 #define BridgingHeader_h
 
 #import "SwiftBridgeCore.h"
-#import "speed-reader-core.h"
+#import "skim-core.h"
 
 #endif /* BridgingHeader_h */

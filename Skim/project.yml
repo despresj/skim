@@ -1,4 +1,4 @@
-name: SpeedReader
+name: Skim
 options:
   bundleIdPrefix: com.quickspec
   deploymentTarget:
@@ -11,30 +11,35 @@ settings:
     MACOSX_DEPLOYMENT_TARGET: "14.0"
 
 targets:
-  SpeedReader:
+  Skim:
     type: application
     platform: macOS
     sources:
-      - path: SpeedReader
+      - path: Skim
         excludes:
           - "*.h"
       - path: ../generated/SwiftBridgeCore.swift
-      - path: ../generated/speed-reader-core/speed-reader-core.swift
+      - path: ../generated/skim-core/skim-core.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.quickspec.speedreader
-        PRODUCT_NAME: Speed Reader
-        INFOPLIST_FILE: SpeedReader/Info.plist
-        SWIFT_OBJC_BRIDGING_HEADER: SpeedReader/BridgingHeader.h
+        PRODUCT_BUNDLE_IDENTIFIER: com.quickspec.skim
+        PRODUCT_NAME: Skim
+        INFOPLIST_FILE: Skim/Info.plist
+        SWIFT_OBJC_BRIDGING_HEADER: Skim/BridgingHeader.h
         HEADER_SEARCH_PATHS:
           - $(PROJECT_DIR)/../generated
-          - $(PROJECT_DIR)/../generated/speed-reader-core
-        LIBRARY_SEARCH_PATHS:
-          - $(PROJECT_DIR)/../target/release
+          - $(PROJECT_DIR)/../generated/skim-core
         OTHER_LDFLAGS:
-          - -lspeed_reader_core
+          - -lskim_core
         LD_RUNPATH_SEARCH_PATHS:
           - "@executable_path/../Frameworks"
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Automatic
+      configs:
+        Debug:
+          LIBRARY_SEARCH_PATHS:
+            - $(PROJECT_DIR)/../target/debug
+        Release:
+          LIBRARY_SEARCH_PATHS:
+            - $(PROJECT_DIR)/../target/release

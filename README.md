@@ -1,14 +1,14 @@
-# SpeedReader
+# Skim
 
-SpeedReader is a simple macOS speed-reading app: paste text (or open a `.txt` file) and play it back word-by-word at your chosen WPM.
+Skim is a simple macOS speed-reading app: paste text (or open a `.txt` file) and play it back word-by-word at your chosen WPM.
 
 ## Install (Homebrew)
 
-`brew install --cask despresj/speed-reader/speed-reader`
+`brew install --cask despresj/skim/skim`
 
 If Homebrew doesn’t auto-tap, run:
 
-`brew tap despresj/speed-reader`
+`brew tap despresj/skim`
 
 If you haven’t codesigned/notarized the app yet, you may need `--no-quarantine` or to remove the quarantine attribute after install.
 
@@ -29,7 +29,7 @@ Build and run:
 
 Copy `config.example.toml` to:
 
-`~/Library/Application Support/SpeedReader/config.toml`
+`~/Library/Application Support/Skim/config.toml`
 
 ## Release
 
@@ -37,4 +37,4 @@ Build the release zip:
 
 `make dist`
 
-Upload `dist/SpeedReader.zip` to your GitHub release (tag `vX.Y.Z`), then bump the Homebrew cask in the tap repo (`despresj/homebrew-speed-reader`) to the matching `version` + `sha256`.
+Upload `dist/Skim.zip` to your GitHub release (tag `vX.Y.Z`), then bump the Homebrew cask in the tap repo (`despresj/homebrew-skim`) to the matching `version` + `sha256`.

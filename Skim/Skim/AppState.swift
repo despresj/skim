@@ -249,7 +249,7 @@ struct RecoverablePosition: Codable {
 
 @MainActor
 final class AppState: ObservableObject {
-    private var reader: SpeedReader
+    private var reader: Skim
 
     // Core state
     @Published var currentWord: WordToken?
@@ -386,7 +386,7 @@ final class AppState: ObservableObject {
     // MARK: - Init
 
     init() {
-        self.reader = SpeedReader()
+        self.reader = Skim()
         loadAppConfig()
         loadShortcuts()
         loadRecentTexts()

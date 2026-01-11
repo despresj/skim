@@ -42,7 +42,7 @@ impl Default for Config {
 
 impl Config {
     pub fn config_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|p| p.join("SpeedReader").join("config.toml"))
+        dirs::config_dir().map(|p| p.join("Skim").join("config.toml"))
     }
 
     pub fn load() -> Self {

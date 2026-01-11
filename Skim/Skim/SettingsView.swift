@@ -360,7 +360,7 @@ struct TomlEditorView: View {
         } else {
             // Default template if no config exists
             tomlContent = """
-            # SpeedReader Configuration
+            # Skim Configuration
 
             [window]
             width = 500

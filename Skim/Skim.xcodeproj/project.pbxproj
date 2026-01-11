@@ -1,0 +1,349 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		27237F670A2DE31C798581EC /* SkimApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E9F875DEA1A9E8EC132C5A /* SkimApp.swift */; };
+		6AC1B1DEEE99227F202427AA /* skim-core.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7915D780D44F1F07CCC2BAEA /* skim-core.swift */; };
+		71459D1C2C5A2AFE5A20D804 /* SwiftBridgeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8107EBD0977B30C1E848522C /* SwiftBridgeCore.swift */; };
+		89EE3F49F88C876C7AA9714A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F32A045735D3F8027E967CC /* ContentView.swift */; };
+		981491CD625F4936AD99E391 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B58CB3B1E0CD47287265F48 /* SettingsView.swift */; };
+		EA400E45C8D16E2B26A885CB /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5B3BB7A0DC030F9AE097DF4 /* AppState.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		3C38CE731121710B6C1BEA9C /* Skim.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Skim.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7915D780D44F1F07CCC2BAEA /* skim-core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "skim-core.swift"; sourceTree = "<group>"; };
+		8107EBD0977B30C1E848522C /* SwiftBridgeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftBridgeCore.swift; sourceTree = "<group>"; };
+		8B58CB3B1E0CD47287265F48 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		8F32A045735D3F8027E967CC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A9E9F875DEA1A9E8EC132C5A /* SkimApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkimApp.swift; sourceTree = "<group>"; };
+		C614E8C5B920D62D1632491B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		D5B3BB7A0DC030F9AE097DF4 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0AB0CAFFF707722559D27AAD /* generated */ = {
+			isa = PBXGroup;
+			children = (
+				8107EBD0977B30C1E848522C /* SwiftBridgeCore.swift */,
+			);
+			name = generated;
+			path = ../generated;
+			sourceTree = "<group>";
+		};
+		2A4071366542AE4DE4B3C398 /* skim-core */ = {
+			isa = PBXGroup;
+			children = (
+				7915D780D44F1F07CCC2BAEA /* skim-core.swift */,
+			);
+			name = "skim-core";
+			path = "../generated/skim-core";
+			sourceTree = "<group>";
+		};
+		4758E983973DE210234643DA /* Skim */ = {
+			isa = PBXGroup;
+			children = (
+				D5B3BB7A0DC030F9AE097DF4 /* AppState.swift */,
+				8F32A045735D3F8027E967CC /* ContentView.swift */,
+				C614E8C5B920D62D1632491B /* Info.plist */,
+				8B58CB3B1E0CD47287265F48 /* SettingsView.swift */,
+				A9E9F875DEA1A9E8EC132C5A /* SkimApp.swift */,
+			);
+			path = Skim;
+			sourceTree = "<group>";
+		};
+		8376665DC3F1A88B584029C2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3C38CE731121710B6C1BEA9C /* Skim.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E53B53EDF348500494D0BA4B = {
+			isa = PBXGroup;
+			children = (
+				0AB0CAFFF707722559D27AAD /* generated */,
+				4758E983973DE210234643DA /* Skim */,
+				2A4071366542AE4DE4B3C398 /* skim-core */,
+				8376665DC3F1A88B584029C2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1E5372F2598882EC774B7E2A /* Skim */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BC4F9DB4DBD83C203F89B0C5 /* Build configuration list for PBXNativeTarget "Skim" */;
+			buildPhases = (
+				06E48CD6F872AE903F81CA3D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Skim;
+			packageProductDependencies = (
+			);
+			productName = Skim;
+			productReference = 3C38CE731121710B6C1BEA9C /* Skim.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F8FDEBBF21CCB21631D9D6D6 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					1E5372F2598882EC774B7E2A = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = F40A5C73E0F84D28D19571CF /* Build configuration list for PBXProject "Skim" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E53B53EDF348500494D0BA4B;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1E5372F2598882EC774B7E2A /* Skim */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		06E48CD6F872AE903F81CA3D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EA400E45C8D16E2B26A885CB /* AppState.swift in Sources */,
+				89EE3F49F88C876C7AA9714A /* ContentView.swift in Sources */,
+				981491CD625F4936AD99E391 /* SettingsView.swift in Sources */,
+				27237F670A2DE31C798581EC /* SkimApp.swift in Sources */,
+				71459D1C2C5A2AFE5A20D804 /* SwiftBridgeCore.swift in Sources */,
+				6AC1B1DEEE99227F202427AA /* skim-core.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2979DEC6A63F8B65DCCC339F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		61EF477111292003DB1A6D61 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../generated",
+					"$(PROJECT_DIR)/../generated/skim-core",
+				);
+				INFOPLIST_FILE = Skim/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../target/release",
+				);
+				OTHER_LDFLAGS = (
+					"-lskim_core",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.quickspec.skim;
+				PRODUCT_NAME = Skim;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = Skim/BridgingHeader.h;
+			};
+			name = Release;
+		};
+		C285C47EEB5298F074DBB4A3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../generated",
+					"$(PROJECT_DIR)/../generated/skim-core",
+				);
+				INFOPLIST_FILE = Skim/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../target/debug",
+				);
+				OTHER_LDFLAGS = (
+					"-lskim_core",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.quickspec.skim;
+				PRODUCT_NAME = Skim;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = Skim/BridgingHeader.h;
+			};
+			name = Debug;
+		};
+		D72E0222ECC3D401BE83C37F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BC4F9DB4DBD83C203F89B0C5 /* Build configuration list for PBXNativeTarget "Skim" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C285C47EEB5298F074DBB4A3 /* Debug */,
+				61EF477111292003DB1A6D61 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F40A5C73E0F84D28D19571CF /* Build configuration list for PBXProject "Skim" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2979DEC6A63F8B65DCCC339F /* Debug */,
+				D72E0222ECC3D401BE83C37F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = F8FDEBBF21CCB21631D9D6D6 /* Project object */;
+}

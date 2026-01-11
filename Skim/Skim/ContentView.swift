@@ -225,7 +225,7 @@ struct EmptyStateView: View {
                 .foregroundStyle(.tertiary)
 
             VStack(spacing: 8) {
-                Text("Speed Reader")
+                Text("Skim")
                     .font(.system(size: 48, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
 

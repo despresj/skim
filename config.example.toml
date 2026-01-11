@@ -1,5 +1,5 @@
-# SpeedReader Configuration
-# This file is stored at ~/Library/Application Support/SpeedReader/config.toml
+# Skim Configuration
+# This file is stored at ~/Library/Application Support/Skim/config.toml
 
 [window]
 width = 1800

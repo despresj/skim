@@ -1,10 +1,10 @@
 .PHONY: all rust swift xcode clean run dev dist setup
 
-RUST_LIB = target/release/libspeed_reader_core.a
-DERIVED_DATA = SpeedReader/build/DerivedData
-APP_BUNDLE = $(DERIVED_DATA)/Build/Products/Release/Speed Reader.app
+RUST_LIB = target/release/libskim_core.a
+DERIVED_DATA = Skim/build/DerivedData
+APP_BUNDLE = $(DERIVED_DATA)/Build/Products/Release/Skim.app
 DIST_DIR = dist
-DIST_ZIP = $(DIST_DIR)/SpeedReader.zip
+DIST_ZIP = $(DIST_DIR)/Skim.zip
 
 all: rust xcode swift
 
@@ -14,12 +14,12 @@ rust:
 
 # Generate Xcode project (requires xcodegen: brew install xcodegen)
 xcode:
-	cd SpeedReader && xcodegen generate
+	cd Skim && xcodegen generate
 
 # Build Swift app
 swift: rust xcode
-	xcodebuild -project SpeedReader/SpeedReader.xcodeproj \
-		-scheme SpeedReader \
+	xcodebuild -project Skim/Skim.xcodeproj \
+		-scheme Skim \
 		-configuration Release \
 		-derivedDataPath "$(DERIVED_DATA)" \
 		build
@@ -31,19 +31,19 @@ run: swift
 # Development build (faster)
 dev:
 	cargo build
-	cd SpeedReader && xcodegen generate
-	xcodebuild -project SpeedReader/SpeedReader.xcodeproj \
-		-scheme SpeedReader \
+	cd Skim && xcodegen generate
+	xcodebuild -project Skim/Skim.xcodeproj \
+		-scheme Skim \
 		-configuration Debug \
 		-derivedDataPath "$(DERIVED_DATA)" \
 		build
-	open "$(DERIVED_DATA)/Build/Products/Debug/Speed Reader.app"
+	open "$(DERIVED_DATA)/Build/Products/Debug/Skim.app"
 
 # Clean all build artifacts
 clean:
 	cargo clean
-	rm -rf SpeedReader/SpeedReader.xcodeproj
-	rm -rf SpeedReader/build
+	rm -rf Skim/Skim.xcodeproj
+	rm -rf Skim/build
 	rm -rf generated
 
 # Setup: install dependencies

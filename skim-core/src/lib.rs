@@ -37,10 +37,10 @@ mod ffi {
         fn get_config_path() -> Option<String>;
         fn read_config_toml() -> Option<String>;
         fn write_config_toml(content: String) -> bool;
-        type SpeedReader;
+        type Skim;
 
         #[swift_bridge(init)]
-        fn new() -> SpeedReader;
+        fn new() -> Skim;
 
         // Clipboard operations
         fn read_clipboard(&mut self) -> Option<String>;
@@ -65,14 +65,14 @@ mod ffi {
     }
 }
 
-pub struct SpeedReader {
+pub struct Skim {
     clipboard: ClipboardManager,
     tokenizer: Tokenizer,
     config: ffi::PlaybackConfig,
     current_index: usize,
 }
 
-impl SpeedReader {
+impl Skim {
     fn new() -> Self {
         Self {
             clipboard: ClipboardManager::new(),

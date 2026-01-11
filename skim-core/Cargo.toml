@@ -1,12 +1,12 @@
 [package]
-name = "speed-reader-core"
+name = "skim-core"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
 
 [lib]
 crate-type = ["staticlib"]
-name = "speed_reader_core"
+name = "skim_core"
 
 [dependencies]
 swift-bridge = "0.1"

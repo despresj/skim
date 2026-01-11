@@ -141,7 +141,7 @@ extension __swift_bridge__$Option$AppConfig {
     }
 }
 
-public class SpeedReader: SpeedReaderRefMut {
+public class Skim: SkimRefMut {
     var isOwned: Bool = true
 
     public override init(ptr: UnsafeMutableRawPointer) {
@@ -150,127 +150,127 @@ public class SpeedReader: SpeedReaderRefMut {
 
     deinit {
         if isOwned {
-            __swift_bridge__$SpeedReader$_free(ptr)
+            __swift_bridge__$Skim$_free(ptr)
         }
     }
 }
-extension SpeedReader {
+extension Skim {
     public convenience init() {
-        self.init(ptr: __swift_bridge__$SpeedReader$new())
+        self.init(ptr: __swift_bridge__$Skim$new())
     }
 }
-public class SpeedReaderRefMut: SpeedReaderRef {
+public class SkimRefMut: SkimRef {
     public override init(ptr: UnsafeMutableRawPointer) {
         super.init(ptr: ptr)
     }
 }
-extension SpeedReaderRefMut {
+extension SkimRefMut {
     public func read_clipboard() -> Optional<RustString> {
-        { let val = __swift_bridge__$SpeedReader$read_clipboard(ptr); if val != nil { return RustString(ptr: val!) } else { return nil } }()
+        { let val = __swift_bridge__$Skim$read_clipboard(ptr); if val != nil { return RustString(ptr: val!) } else { return nil } }()
     }
 
     public func has_clipboard_text() -> Bool {
-        __swift_bridge__$SpeedReader$has_clipboard_text(ptr)
+        __swift_bridge__$Skim$has_clipboard_text(ptr)
     }
 
     public func load_text<GenericIntoRustString: IntoRustString>(_ text: GenericIntoRustString) {
-        __swift_bridge__$SpeedReader$load_text(ptr, { let rustString = text.intoRustString(); rustString.isOwned = false; return rustString.ptr }())
+        __swift_bridge__$Skim$load_text(ptr, { let rustString = text.intoRustString(); rustString.isOwned = false; return rustString.ptr }())
     }
 
     public func set_config(_ config: PlaybackConfig) {
-        __swift_bridge__$SpeedReader$set_config(ptr, config.intoFfiRepr())
+        __swift_bridge__$Skim$set_config(ptr, config.intoFfiRepr())
     }
 
     public func advance() -> Optional<WordToken> {
-        __swift_bridge__$SpeedReader$advance(ptr).intoSwiftRepr()
+        __swift_bridge__$Skim$advance(ptr).intoSwiftRepr()
     }
 
     public func go_back() -> Optional<WordToken> {
-        __swift_bridge__$SpeedReader$go_back(ptr).intoSwiftRepr()
+        __swift_bridge__$Skim$go_back(ptr).intoSwiftRepr()
     }
 
     public func seek_to(_ index: UInt32) -> Optional<WordToken> {
-        __swift_bridge__$SpeedReader$seek_to(ptr, index).intoSwiftRepr()
+        __swift_bridge__$Skim$seek_to(ptr, index).intoSwiftRepr()
     }
 
     public func reset() {
-        __swift_bridge__$SpeedReader$reset(ptr)
+        __swift_bridge__$Skim$reset(ptr)
     }
 }
-public class SpeedReaderRef {
+public class SkimRef {
     var ptr: UnsafeMutableRawPointer
 
     public init(ptr: UnsafeMutableRawPointer) {
         self.ptr = ptr
     }
 }
-extension SpeedReaderRef {
+extension SkimRef {
     public func get_word_count() -> UInt32 {
-        __swift_bridge__$SpeedReader$get_word_count(ptr)
+        __swift_bridge__$Skim$get_word_count(ptr)
     }
 
     public func get_current_word() -> Optional<WordToken> {
-        __swift_bridge__$SpeedReader$get_current_word(ptr).intoSwiftRepr()
+        __swift_bridge__$Skim$get_current_word(ptr).intoSwiftRepr()
     }
 
     public func is_at_start() -> Bool {
-        __swift_bridge__$SpeedReader$is_at_start(ptr)
+        __swift_bridge__$Skim$is_at_start(ptr)
     }
 
     public func is_at_end() -> Bool {
-        __swift_bridge__$SpeedReader$is_at_end(ptr)
+        __swift_bridge__$Skim$is_at_end(ptr)
     }
 
     public func get_progress_percent() -> Float {
-        __swift_bridge__$SpeedReader$get_progress_percent(ptr)
+        __swift_bridge__$Skim$get_progress_percent(ptr)
     }
 }
-extension SpeedReader: Vectorizable {
+extension Skim: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
-        __swift_bridge__$Vec_SpeedReader$new()
+        __swift_bridge__$Vec_Skim$new()
     }
 
     public static func vecOfSelfFree(vecPtr: UnsafeMutableRawPointer) {
-        __swift_bridge__$Vec_SpeedReader$drop(vecPtr)
+        __swift_bridge__$Vec_Skim$drop(vecPtr)
     }
 
-    public static func vecOfSelfPush(vecPtr: UnsafeMutableRawPointer, value: SpeedReader) {
-        __swift_bridge__$Vec_SpeedReader$push(vecPtr, {value.isOwned = false; return value.ptr;}())
+    public static func vecOfSelfPush(vecPtr: UnsafeMutableRawPointer, value: Skim) {
+        __swift_bridge__$Vec_Skim$push(vecPtr, {value.isOwned = false; return value.ptr;}())
     }
 
     public static func vecOfSelfPop(vecPtr: UnsafeMutableRawPointer) -> Optional<Self> {
-        let pointer = __swift_bridge__$Vec_SpeedReader$pop(vecPtr)
+        let pointer = __swift_bridge__$Vec_Skim$pop(vecPtr)
         if pointer == nil {
             return nil
         } else {
-            return (SpeedReader(ptr: pointer!) as! Self)
+            return (Skim(ptr: pointer!) as! Self)
         }
     }
 
-    public static func vecOfSelfGet(vecPtr: UnsafeMutableRawPointer, index: UInt) -> Optional<SpeedReaderRef> {
-        let pointer = __swift_bridge__$Vec_SpeedReader$get(vecPtr, index)
+    public static func vecOfSelfGet(vecPtr: UnsafeMutableRawPointer, index: UInt) -> Optional<SkimRef> {
+        let pointer = __swift_bridge__$Vec_Skim$get(vecPtr, index)
         if pointer == nil {
             return nil
         } else {
-            return SpeedReaderRef(ptr: pointer!)
+            return SkimRef(ptr: pointer!)
         }
     }
 
-    public static func vecOfSelfGetMut(vecPtr: UnsafeMutableRawPointer, index: UInt) -> Optional<SpeedReaderRefMut> {
-        let pointer = __swift_bridge__$Vec_SpeedReader$get_mut(vecPtr, index)
+    public static func vecOfSelfGetMut(vecPtr: UnsafeMutableRawPointer, index: UInt) -> Optional<SkimRefMut> {
+        let pointer = __swift_bridge__$Vec_Skim$get_mut(vecPtr, index)
         if pointer == nil {
             return nil
         } else {
-            return SpeedReaderRefMut(ptr: pointer!)
+            return SkimRefMut(ptr: pointer!)
         }
     }
 
-    public static func vecOfSelfAsPtr(vecPtr: UnsafeMutableRawPointer) -> UnsafePointer<SpeedReaderRef> {
-        UnsafePointer<SpeedReaderRef>(OpaquePointer(__swift_bridge__$Vec_SpeedReader$as_ptr(vecPtr)))
+    public static func vecOfSelfAsPtr(vecPtr: UnsafeMutableRawPointer) -> UnsafePointer<SkimRef> {
+        UnsafePointer<SkimRef>(OpaquePointer(__swift_bridge__$Vec_Skim$as_ptr(vecPtr)))
     }
 
     public static func vecOfSelfLen(vecPtr: UnsafeMutableRawPointer) -> UInt {
-        __swift_bridge__$Vec_SpeedReader$len(vecPtr)
+        __swift_bridge__$Vec_Skim$len(vecPtr)
     }
 }
 

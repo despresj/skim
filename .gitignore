@@ -2,7 +2,7 @@
 /target/
 
 # Swift/Xcode
-SpeedReader/build/
+Skim/build/
 **/xcuserdata/
 **/*.xcuserdatad/
 
