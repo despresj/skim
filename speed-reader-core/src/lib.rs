@@ -1,7 +1,9 @@
 mod clipboard;
+mod config;
 mod tokenizer;
 
 use clipboard::ClipboardManager;
+use config::Config;
 use tokenizer::Tokenizer;
 
 #[swift_bridge::bridge]
@@ -21,7 +23,20 @@ mod ffi {
         pub punctuation_multiplier: f32,
     }
 
+    #[swift_bridge(swift_repr = "struct")]
+    struct AppConfig {
+        pub window_width: u32,
+        pub window_height: u32,
+        pub wpm: u32,
+        pub inter_word_delay_ms: u32,
+    }
+
     extern "Rust" {
+        fn load_config() -> AppConfig;
+        fn save_config(config: AppConfig) -> bool;
+        fn get_config_path() -> Option<String>;
+        fn read_config_toml() -> Option<String>;
+        fn write_config_toml(content: String) -> bool;
         type SpeedReader;
 
         #[swift_bridge(init)]
@@ -63,7 +78,7 @@ impl SpeedReader {
             clipboard: ClipboardManager::new(),
             tokenizer: Tokenizer::new(),
             config: ffi::PlaybackConfig {
-                wpm: 300,
+                wpm: 400,
                 pause_on_punctuation: true,
                 punctuation_multiplier: 1.5,
             },
@@ -157,20 +172,69 @@ impl SpeedReader {
                 1.0
             };
 
-            // Apply punctuation pause
-            let punct_factor =
-                if self.config.pause_on_punctuation && word.has_trailing_punctuation {
-                    self.config.punctuation_multiplier
-                } else {
-                    1.0
-                };
+            // Apply punctuation pause based on punctuation type
+            // Config multiplier scales the base punctuation pauses
+            let punct_factor = if self.config.pause_on_punctuation {
+                word.punctuation_type.pause_multiplier() * self.config.punctuation_multiplier
+            } else {
+                1.0
+            };
+
+            // Apply word type complexity factor (numerals, ALL_CAPS, etc.)
+            let complexity_factor = word.word_type.complexity_multiplier();
 
             ffi::WordToken {
                 text: word.text.clone(),
                 index: index as u32,
                 total: self.tokenizer.len() as u32,
-                display_time_ms: (base_time_ms * length_factor * punct_factor) as u32,
+                display_time_ms: (base_time_ms * length_factor * punct_factor * complexity_factor) as u32,
             }
         })
     }
+}
+
+fn load_config() -> ffi::AppConfig {
+    let config = Config::load();
+    ffi::AppConfig {
+        window_width: config.window.width,
+        window_height: config.window.height,
+        wpm: config.playback.wpm,
+        inter_word_delay_ms: config.playback.inter_word_delay_ms,
+    }
+}
+
+fn save_config(config: ffi::AppConfig) -> bool {
+    let cfg = Config {
+        window: config::WindowConfig {
+            width: config.window_width,
+            height: config.window_height,
+        },
+        playback: config::PlaybackSettings {
+            wpm: config.wpm,
+            inter_word_delay_ms: config.inter_word_delay_ms,
+        },
+    };
+    cfg.save()
+}
+
+fn get_config_path() -> Option<String> {
+    Config::config_path().map(|p| p.to_string_lossy().to_string())
+}
+
+fn read_config_toml() -> Option<String> {
+    Config::config_path().and_then(|path| std::fs::read_to_string(&path).ok())
+}
+
+fn write_config_toml(content: String) -> bool {
+    let Some(path) = Config::config_path() else {
+        return false;
+    };
+
+    if let Some(parent) = path.parent() {
+        if std::fs::create_dir_all(parent).is_err() {
+            return false;
+        }
+    }
+
+    std::fs::write(&path, content).is_ok()
 }

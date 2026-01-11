@@ -1,0 +1,10 @@
+# SpeedReader Configuration
+# This file is stored at ~/Library/Application Support/SpeedReader/config.toml
+
+[window]
+width = 1800
+height = 1100
+
+[playback]
+wpm = 400
+inter_word_delay_ms = 10

@@ -1,3 +1,18 @@
+public func load_config() -> AppConfig {
+    __swift_bridge__$load_config().intoSwiftRepr()
+}
+public func save_config(_ config: AppConfig) -> Bool {
+    __swift_bridge__$save_config(config.intoFfiRepr())
+}
+public func get_config_path() -> Optional<RustString> {
+    { let val = __swift_bridge__$get_config_path(); if val != nil { return RustString(ptr: val!) } else { return nil } }()
+}
+public func read_config_toml() -> Optional<RustString> {
+    { let val = __swift_bridge__$read_config_toml(); if val != nil { return RustString(ptr: val!) } else { return nil } }()
+}
+public func write_config_toml<GenericIntoRustString: IntoRustString>(_ content: GenericIntoRustString) -> Bool {
+    __swift_bridge__$write_config_toml({ let rustString = content.intoRustString(); rustString.isOwned = false; return rustString.ptr }())
+}
 public struct WordToken {
     public var text: RustString
     public var index: UInt32
@@ -79,6 +94,49 @@ extension __swift_bridge__$Option$PlaybackConfig {
             return __swift_bridge__$Option$PlaybackConfig(is_some: true, val: v.intoFfiRepr())
         } else {
             return __swift_bridge__$Option$PlaybackConfig(is_some: false, val: __swift_bridge__$PlaybackConfig())
+        }
+    }
+}
+public struct AppConfig {
+    public var window_width: UInt32
+    public var window_height: UInt32
+    public var wpm: UInt32
+    public var inter_word_delay_ms: UInt32
+
+    public init(window_width: UInt32,window_height: UInt32,wpm: UInt32,inter_word_delay_ms: UInt32) {
+        self.window_width = window_width
+        self.window_height = window_height
+        self.wpm = wpm
+        self.inter_word_delay_ms = inter_word_delay_ms
+    }
+
+    @inline(__always)
+    func intoFfiRepr() -> __swift_bridge__$AppConfig {
+        { let val = self; return __swift_bridge__$AppConfig(window_width: val.window_width, window_height: val.window_height, wpm: val.wpm, inter_word_delay_ms: val.inter_word_delay_ms); }()
+    }
+}
+extension __swift_bridge__$AppConfig {
+    @inline(__always)
+    func intoSwiftRepr() -> AppConfig {
+        { let val = self; return AppConfig(window_width: val.window_width, window_height: val.window_height, wpm: val.wpm, inter_word_delay_ms: val.inter_word_delay_ms); }()
+    }
+}
+extension __swift_bridge__$Option$AppConfig {
+    @inline(__always)
+    func intoSwiftRepr() -> Optional<AppConfig> {
+        if self.is_some {
+            return self.val.intoSwiftRepr()
+        } else {
+            return nil
+        }
+    }
+
+    @inline(__always)
+    static func fromSwiftRepr(_ val: Optional<AppConfig>) -> __swift_bridge__$Option$AppConfig {
+        if let v = val {
+            return __swift_bridge__$Option$AppConfig(is_some: true, val: v.intoFfiRepr())
+        } else {
+            return __swift_bridge__$Option$AppConfig(is_some: false, val: __swift_bridge__$AppConfig())
         }
     }
 }

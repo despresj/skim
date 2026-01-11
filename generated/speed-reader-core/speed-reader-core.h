@@ -5,6 +5,8 @@ typedef struct __swift_bridge__$WordToken { void* text; uint32_t index; uint32_t
 typedef struct __swift_bridge__$Option$WordToken { bool is_some; __swift_bridge__$WordToken val; } __swift_bridge__$Option$WordToken;
 typedef struct __swift_bridge__$PlaybackConfig { uint32_t wpm; bool pause_on_punctuation; float punctuation_multiplier; } __swift_bridge__$PlaybackConfig;
 typedef struct __swift_bridge__$Option$PlaybackConfig { bool is_some; __swift_bridge__$PlaybackConfig val; } __swift_bridge__$Option$PlaybackConfig;
+typedef struct __swift_bridge__$AppConfig { uint32_t window_width; uint32_t window_height; uint32_t wpm; uint32_t inter_word_delay_ms; } __swift_bridge__$AppConfig;
+typedef struct __swift_bridge__$Option$AppConfig { bool is_some; __swift_bridge__$AppConfig val; } __swift_bridge__$Option$AppConfig;
 typedef struct SpeedReader SpeedReader;
 void __swift_bridge__$SpeedReader$_free(void* self);
 
@@ -17,6 +19,11 @@ void* __swift_bridge__$Vec_SpeedReader$get_mut(void* vec_ptr, uintptr_t index);
 uintptr_t __swift_bridge__$Vec_SpeedReader$len(void* vec_ptr);
 void* __swift_bridge__$Vec_SpeedReader$as_ptr(void* vec_ptr);
 
+struct __swift_bridge__$AppConfig __swift_bridge__$load_config(void);
+bool __swift_bridge__$save_config(struct __swift_bridge__$AppConfig config);
+void* __swift_bridge__$get_config_path(void);
+void* __swift_bridge__$read_config_toml(void);
+bool __swift_bridge__$write_config_toml(void* content);
 void* __swift_bridge__$SpeedReader$new(void);
 void* __swift_bridge__$SpeedReader$read_clipboard(void* self);
 bool __swift_bridge__$SpeedReader$has_clipboard_text(void* self);
