@@ -4,10 +4,11 @@ SpeedReader is a simple macOS speed-reading app: paste text (or open a `.txt` fi
 
 ## Install (Homebrew)
 
-1. Create a GitHub release and upload `SpeedReader.zip` (see “Release” below).
-2. Install the cask:
+`brew install --cask despresj/speed-reader/speed-reader`
 
-   `brew install --cask https://raw.githubusercontent.com/despresj/speed-reader/main/Casks/speed-reader.rb`
+If Homebrew doesn’t auto-tap, run:
+
+`brew tap despresj/speed-reader`
 
 If you haven’t codesigned/notarized the app yet, you may need `--no-quarantine` or to remove the quarantine attribute after install.
 
@@ -36,4 +37,4 @@ Build the release zip:
 
 `make dist`
 
-Upload `dist/SpeedReader.zip` to your GitHub release. The Homebrew cask downloads from `releases/latest/download/SpeedReader.zip`.
+Upload `dist/SpeedReader.zip` to your GitHub release (tag `vX.Y.Z`), then bump the Homebrew cask in the tap repo (`despresj/homebrew-speed-reader`) to the matching `version` + `sha256`.
