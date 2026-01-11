@@ -1,6 +1,9 @@
-.PHONY: all rust swift xcode clean run
+.PHONY: all rust swift xcode clean run dev dist setup
 
 RUST_LIB = target/release/libspeed_reader_core.a
+APP_BUNDLE = SpeedReader/build/Release/Speed Reader.app
+DIST_DIR = dist
+DIST_ZIP = $(DIST_DIR)/SpeedReader.zip
 
 all: rust xcode swift
 
@@ -45,3 +48,11 @@ setup:
 	@echo "Installing xcodegen..."
 	brew install xcodegen || true
 	@echo "Done! Run 'make' to build."
+
+# Build release artifact for GitHub/Homebrew
+dist: swift
+	mkdir -p "$(DIST_DIR)"
+	ditto -c -k --sequesterRsrc --keepParent "$(APP_BUNDLE)" "$(DIST_ZIP)"
+	shasum -a 256 "$(DIST_ZIP)" | awk '{print $$1}' > "$(DIST_ZIP).sha256"
+	@echo "Created $(DIST_ZIP)"
+	@echo "sha256: $$(cat "$(DIST_ZIP).sha256")"

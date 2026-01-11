@@ -3,10 +3,14 @@
 
 # Swift/Xcode
 SpeedReader/build/
-*.xcuserdata
+**/xcuserdata/
+**/*.xcuserdatad/
 
 # Generated (keep tracked for easier builds)
 # /generated/
 
 # macOS
 .DS_Store
+
+# Release artifacts
+/dist/
