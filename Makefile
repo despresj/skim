@@ -1,7 +1,8 @@
 .PHONY: all rust swift xcode clean run dev dist setup
 
 RUST_LIB = target/release/libspeed_reader_core.a
-APP_BUNDLE = SpeedReader/build/Release/Speed Reader.app
+DERIVED_DATA = SpeedReader/build/DerivedData
+APP_BUNDLE = $(DERIVED_DATA)/Build/Products/Release/Speed Reader.app
 DIST_DIR = dist
 DIST_ZIP = $(DIST_DIR)/SpeedReader.zip
 
@@ -20,11 +21,12 @@ swift: rust xcode
 	xcodebuild -project SpeedReader/SpeedReader.xcodeproj \
 		-scheme SpeedReader \
 		-configuration Release \
+		-derivedDataPath "$(DERIVED_DATA)" \
 		build
 
 # Run the app
 run: swift
-	open SpeedReader/build/Release/Speed\ Reader.app
+	open "$(APP_BUNDLE)"
 
 # Development build (faster)
 dev:
@@ -33,8 +35,9 @@ dev:
 	xcodebuild -project SpeedReader/SpeedReader.xcodeproj \
 		-scheme SpeedReader \
 		-configuration Debug \
+		-derivedDataPath "$(DERIVED_DATA)" \
 		build
-	open SpeedReader/build/Debug/Speed\ Reader.app
+	open "$(DERIVED_DATA)/Build/Products/Debug/Speed Reader.app"
 
 # Clean all build artifacts
 clean:

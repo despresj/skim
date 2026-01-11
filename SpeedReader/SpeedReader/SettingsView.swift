@@ -389,7 +389,9 @@ struct TomlEditorView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     SettingsView()
         .environmentObject(AppState())
 }
+#endif

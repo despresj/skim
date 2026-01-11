@@ -916,7 +916,9 @@ struct BreakReminderOverlay: View {
 
 // MARK: - Preview
 
+#if DEBUG
 #Preview {
     ContentView()
         .environmentObject(AppState())
 }
+#endif
