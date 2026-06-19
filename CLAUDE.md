@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Skim** (repo dir: `skim`) is a clipboard-first, one-thumb RSVP reading app for iPhone. Copy text → open app → hold thumb on the right edge → words stream by at a WPM-paced rhythm. This repo is the **minimal v1 slice**. The full product vision lives in `rsvp_casual_reader_spec.md` — read it before adding any reading/gesture/pacing feature; it defines the intended UX (semantic replay, cruise mode, pause context, speed bands) and the build order.
 
-Guiding principle from the spec: this is a *calm casual flow-reading instrument*, not a speed-reading app. The reading surface is "sacred" — no buttons/toolbars/sliders during reading; controls are physical gestures confirmed by subtle haptics.
+Guiding principle from the spec: this is a _calm casual flow-reading instrument_, not a speed-reading app. The reading surface is "sacred" — no buttons/toolbars/sliders during reading; controls are physical gestures confirmed by subtle haptics.
 
 ## Build & test
 
@@ -46,12 +46,14 @@ The script is build-gated: a failing build exits before anything touches the pho
 Two layers, deliberately separated so the core stays UIKit/SwiftUI-free and testable:
 
 **`Sources/SkimCore/`** — pure reading logic, no UI imports:
-- `Tokenizer` — splits raw text into `[ReadingToken]` (word mode). Assigns each token a `delayMultiplier` for rhythm (clause 1.4×, sentence 2.0×, paragraph 2.8×, long word 1.15×; the *larger* wins) plus `sentenceIndex`/`paragraphIndex`. **Those indices are unused by v1 but emitted now so semantic replay/skip drop in cleanly later** — keep populating them.
+
+- `Tokenizer` — splits raw text into `[ReadingToken]` (word mode). Assigns each token a `delayMultiplier` for rhythm (clause 1.4×, sentence 2.0×, paragraph 2.8×, long word 1.15×; the _larger_ wins) plus `sentenceIndex`/`paragraphIndex`. **Those indices are unused by v1 but emitted now so semantic replay/skip drop in cleanly later** — keep populating them.
 - `Pacing` — `secondsPerToken(wpm:multiplier:)` = `60/wpm * multiplier`.
 - `SpeedBand` — discrete WPM enum (slow 225 → blast 650) with `faster()`/`slower()` stepping. User feels "faster/slower", never a number.
 - `ReadingToken`, `ReaderState` (idle/ready/readingHeld/paused/completed), `ReadingMode`.
 
-**`App/`** — SwiftUI shell. Compiled *together with* `Sources/SkimCore` as one module in the app target (see `project.yml`), so app code uses core types directly with **no `import SkimCore`**.
+**`App/`** — SwiftUI shell. Compiled _together with_ `Sources/SkimCore` as one module in the app target (see `project.yml`), so app code uses core types directly with **no `import SkimCore`**.
+
 - `ReaderViewModel` — the only stateful object (`@MainActor @Observable`). Owns clipboard loading, tokenization, the playback loop (a cancellable `Task` that sleeps per `Pacing` then advances `currentIndex`), the state machine, and haptic triggers. **All reading state flows through here; views are otherwise stateless and forward gesture intent (`startHolding`/`stopHolding`/`setBandIndex`).**
 - `ReadingView` — the sacred surface: centered word, bottom progress line, invisible right-edge thumb rail (hold = read, vertical slide = change band).
 - `ContentView` routes idle→`PasteView`, else→`ReadingView`. `PasteView` is the calm empty/manual-paste state. `Theme.swift` holds the system-aware palette + button styles. `Haptics` maps reader events to `UIImpactFeedbackGenerator`.
