@@ -1,0 +1,3 @@
+module SkimCore {
+    header "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/include/SkimCore-Swift.h"
+}

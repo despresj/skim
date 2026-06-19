@@ -1,0 +1,54 @@
+{
+  "": {
+    "swift-dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/master.swiftdeps"
+  },
+  "/Users/joe/skim/Sources/SkimCore/Context.swift": {
+    "dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Context.d",
+    "object": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Context.swift.o",
+    "swiftmodule": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Context~partial.swiftmodule",
+    "swift-dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Context.swiftdeps",
+    "diagnostics": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Context.dia"
+  },
+  "/Users/joe/skim/Sources/SkimCore/Markdown.swift": {
+    "dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Markdown.d",
+    "object": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Markdown.swift.o",
+    "swiftmodule": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Markdown~partial.swiftmodule",
+    "swift-dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Markdown.swiftdeps",
+    "diagnostics": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Markdown.dia"
+  },
+  "/Users/joe/skim/Sources/SkimCore/Pacing.swift": {
+    "dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Pacing.d",
+    "object": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Pacing.swift.o",
+    "swiftmodule": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Pacing~partial.swiftmodule",
+    "swift-dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Pacing.swiftdeps",
+    "diagnostics": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Pacing.dia"
+  },
+  "/Users/joe/skim/Sources/SkimCore/ReaderState.swift": {
+    "dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/ReaderState.d",
+    "object": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/ReaderState.swift.o",
+    "swiftmodule": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/ReaderState~partial.swiftmodule",
+    "swift-dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/ReaderState.swiftdeps",
+    "diagnostics": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/ReaderState.dia"
+  },
+  "/Users/joe/skim/Sources/SkimCore/ReadingToken.swift": {
+    "dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/ReadingToken.d",
+    "object": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/ReadingToken.swift.o",
+    "swiftmodule": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/ReadingToken~partial.swiftmodule",
+    "swift-dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/ReadingToken.swiftdeps",
+    "diagnostics": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/ReadingToken.dia"
+  },
+  "/Users/joe/skim/Sources/SkimCore/SpeedBand.swift": {
+    "dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/SpeedBand.d",
+    "object": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/SpeedBand.swift.o",
+    "swiftmodule": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/SpeedBand~partial.swiftmodule",
+    "swift-dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/SpeedBand.swiftdeps",
+    "diagnostics": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/SpeedBand.dia"
+  },
+  "/Users/joe/skim/Sources/SkimCore/Tokenizer.swift": {
+    "dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Tokenizer.d",
+    "object": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Tokenizer.swift.o",
+    "swiftmodule": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Tokenizer~partial.swiftmodule",
+    "swift-dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Tokenizer.swiftdeps",
+    "diagnostics": "/Users/joe/skim/.build/arm64-apple-macosx/debug/SkimCore.build/Tokenizer.dia"
+  }
+}

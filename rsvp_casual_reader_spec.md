@@ -2,7 +2,7 @@
 
 ## Working Name
 
-**FlowRead**  
+**Skim**  
 A clipboard-first iPhone reading app that turns copied text into a calm, one-thumb, high-flow reading experience.
 
 ---

@@ -1,0 +1,159 @@
+{
+  "" : {
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Skim-primary.dia",
+    "emit-module-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Skim-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Skim-primary-emit-module.dia",
+    "pch" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Skim-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Skim-primary.swiftdeps"
+  },
+  "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/GeneratedAssetSymbols~partial.swiftmodule"
+  },
+  "/Users/joe/skim/App/ContentView.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ContentView.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ContentView.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ContentView~partial.swiftmodule"
+  },
+  "/Users/joe/skim/App/Haptics.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Haptics.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Haptics.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Haptics.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Haptics.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Haptics.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Haptics.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Haptics.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Haptics~partial.swiftmodule"
+  },
+  "/Users/joe/skim/App/PasteView.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/PasteView.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/PasteView.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/PasteView.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/PasteView.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/PasteView.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/PasteView.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/PasteView.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/PasteView~partial.swiftmodule"
+  },
+  "/Users/joe/skim/App/ReaderViewModel.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderViewModel.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderViewModel.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderViewModel.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderViewModel.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderViewModel.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderViewModel.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderViewModel.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderViewModel~partial.swiftmodule"
+  },
+  "/Users/joe/skim/App/ReadingView.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingView.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingView.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingView.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingView.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingView.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingView.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingView.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingView~partial.swiftmodule"
+  },
+  "/Users/joe/skim/App/SkimApp.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SkimApp.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SkimApp.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SkimApp.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SkimApp.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SkimApp.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SkimApp.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SkimApp.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SkimApp~partial.swiftmodule"
+  },
+  "/Users/joe/skim/App/Theme.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Theme.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Theme.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Theme.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Theme.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Theme.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Theme.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Theme.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Theme~partial.swiftmodule"
+  },
+  "/Users/joe/skim/Sources/SkimCore/Context.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Context.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Context.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Context.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Context.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Context.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Context.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Context.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Context~partial.swiftmodule"
+  },
+  "/Users/joe/skim/Sources/SkimCore/Markdown.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Markdown.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Markdown.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Markdown.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Markdown.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Markdown.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Markdown.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Markdown.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Markdown~partial.swiftmodule"
+  },
+  "/Users/joe/skim/Sources/SkimCore/Pacing.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Pacing.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Pacing.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Pacing.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Pacing.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Pacing.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Pacing.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Pacing.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Pacing~partial.swiftmodule"
+  },
+  "/Users/joe/skim/Sources/SkimCore/ReaderState.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderState.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderState.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderState.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderState.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderState.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderState.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderState.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReaderState~partial.swiftmodule"
+  },
+  "/Users/joe/skim/Sources/SkimCore/ReadingToken.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingToken.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingToken.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingToken.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingToken.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingToken.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingToken.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingToken.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/ReadingToken~partial.swiftmodule"
+  },
+  "/Users/joe/skim/Sources/SkimCore/SpeedBand.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SpeedBand.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SpeedBand.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SpeedBand.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SpeedBand.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SpeedBand.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SpeedBand.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SpeedBand.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/SpeedBand~partial.swiftmodule"
+  },
+  "/Users/joe/skim/Sources/SkimCore/Tokenizer.swift" : {
+    "const-values" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Tokenizer.swiftconstvalues",
+    "dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Tokenizer.d",
+    "diagnostics" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Tokenizer.dia",
+    "index-unit-output-path" : "/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Tokenizer.o",
+    "llvm-bc" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Tokenizer.bc",
+    "object" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Tokenizer.o",
+    "swift-dependencies" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Tokenizer.swiftdeps",
+    "swiftmodule" : "/Users/joe/skim/.build/dd/Build/Intermediates.noindex/Skim.build/Debug-iphonesimulator/Skim.build/Objects-normal/arm64/Tokenizer~partial.swiftmodule"
+  }
+}

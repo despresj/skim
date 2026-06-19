@@ -1,6 +1,6 @@
-name: FlowRead
+name: Skim
 options:
-  bundleIdPrefix: com.flowread
+  bundleIdPrefix: com.despresj
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -12,7 +12,7 @@ settings:
     SWIFT_VERSION: "6.0"
 
 targets:
-  FlowRead:
+  Skim:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
@@ -20,13 +20,16 @@ targets:
     # CoreChecks (a macOS self-check executable) is deliberately excluded.
     sources:
       - path: App
-      - path: Sources/FlowReadCore
+      - path: Sources/SkimCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.flowread.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.despresj.skim
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: "YES"
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
+        # Personal team, so device signing survives `xcodegen generate`.
+        DEVELOPMENT_TEAM: Z26YTV7798
         INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: "YES"
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait

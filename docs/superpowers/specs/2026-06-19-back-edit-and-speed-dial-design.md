@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-19
 **Status:** Approved (design), pending implementation
-**Scope:** App layer only (`App/`). No `FlowReadCore` changes.
+**Scope:** App layer only (`App/`). No `SkimCore` changes.
 
 ## Motivation
 
@@ -96,7 +96,7 @@ glare, make the amber more luminous-gold, deepen the light bronze to pass
 | `readingBorder` | white @ 10% | black @ 8% |
 | `readingAccent` | `#FAC26B` luminous gold | `#A86B14` deep bronze (AA w/ white) |
 | `readingOnAccent` | `#1A1610` | `#FFFFFF` |
-| `readingPivot` | `#6BB3FF` soft sky | `#0066DB` rich blue |
+| `readingPivot` | `#FAC26B` gold (= accent) | `#A86B14` bronze (= accent) |
 | canvas top-glow | `#29241C` warm lift | `#FFFAF2` |
 
 - The **dial arc** uses `readingAccent`; the **back chevron** uses
@@ -114,7 +114,7 @@ glare, make the amber more luminous-gold, deepen the light bronze to pass
 
 ## 6. Core / build / testing
 
-- **No `FlowReadCore` changes** — all App-layer UI + view-model navigation, so
+- **No `SkimCore` changes** — all App-layer UI + view-model navigation, so
   no new `CoreChecks` assertions (the convention only requires them for
   tokenizer/pacing behavior).
 - Verify `swift build` still compiles the core.
