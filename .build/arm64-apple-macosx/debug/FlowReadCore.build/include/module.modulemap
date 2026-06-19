@@ -1,0 +1,3 @@
+module FlowReadCore {
+    header "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/include/FlowReadCore-Swift.h"
+}

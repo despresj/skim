@@ -1,0 +1,479 @@
+{
+  "builtTestProducts" : [
+
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.CoreChecks-arm64-apple-macosx26.0-debug.module" : {
+      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "fileList" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks.build/sources",
+      "importPath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/CoreChecks/main.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/Modules/FlowReadCore.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks.build/sources"
+        }
+      ],
+      "isLibrary" : false,
+      "moduleName" : "CoreChecks",
+      "moduleOutputPath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/Modules/CoreChecks.swiftmodule",
+      "objects" : [
+        "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks.build/main.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx10.13",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/joe/skim/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/joe/skim/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-Xfrontend",
+        "-entry-point-function-name",
+        "-Xfrontend",
+        "CoreChecks_main",
+        "-swift-version",
+        "6",
+        "-I",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-L",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-plugin-path",
+        "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "skim"
+      ],
+      "outputFileMapPath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks.build/main.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/Modules/CoreChecks.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/joe/skim/Sources/CoreChecks/main.swift"
+      ],
+      "tempsPath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.FlowReadCore-arm64-apple-macosx26.0-debug.module" : {
+      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "fileList" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/sources",
+      "importPath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/FlowReadCore/Pacing.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/FlowReadCore/ReaderState.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/FlowReadCore/ReadingToken.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/FlowReadCore/SpeedBand.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/FlowReadCore/Tokenizer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "FlowReadCore",
+      "moduleOutputPath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/Modules/FlowReadCore.swiftmodule",
+      "objects" : [
+        "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/Pacing.swift.o",
+        "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/ReaderState.swift.o",
+        "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/ReadingToken.swift.o",
+        "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/SpeedBand.swift.o",
+        "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/Tokenizer.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx10.13",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/joe/skim/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/joe/skim/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/include/FlowReadCore-Swift.h",
+        "-swift-version",
+        "6",
+        "-I",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-L",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-plugin-path",
+        "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "skim"
+      ],
+      "outputFileMapPath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/Pacing.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/ReaderState.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/ReadingToken.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/SpeedBand.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/Tokenizer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/Modules/FlowReadCore.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/joe/skim/Sources/FlowReadCore/Pacing.swift",
+        "/Users/joe/skim/Sources/FlowReadCore/ReaderState.swift",
+        "/Users/joe/skim/Sources/FlowReadCore/ReadingToken.swift",
+        "/Users/joe/skim/Sources/FlowReadCore/SpeedBand.swift",
+        "/Users/joe/skim/Sources/FlowReadCore/Tokenizer.swift"
+      ],
+      "tempsPath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build",
+      "wholeModuleOptimization" : false
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "CoreChecks" : [
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "-module-name",
+      "CoreChecks",
+      "-package-name",
+      "skim",
+      "-c",
+      "/Users/joe/skim/Sources/CoreChecks/main.swift",
+      "-I",
+      "/Users/joe/skim/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx10.13",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/joe/skim/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/joe/skim/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-Xfrontend",
+      "-entry-point-function-name",
+      "-Xfrontend",
+      "CoreChecks_main",
+      "-swift-version",
+      "6",
+      "-I",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-L",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-plugin-path",
+      "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "skim",
+      "-driver-use-frontend-path",
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+    ],
+    "FlowReadCore" : [
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "-module-name",
+      "FlowReadCore",
+      "-package-name",
+      "skim",
+      "-c",
+      "/Users/joe/skim/Sources/FlowReadCore/Pacing.swift",
+      "/Users/joe/skim/Sources/FlowReadCore/ReaderState.swift",
+      "/Users/joe/skim/Sources/FlowReadCore/ReadingToken.swift",
+      "/Users/joe/skim/Sources/FlowReadCore/SpeedBand.swift",
+      "/Users/joe/skim/Sources/FlowReadCore/Tokenizer.swift",
+      "-I",
+      "/Users/joe/skim/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx10.13",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/joe/skim/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/joe/skim/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/include/FlowReadCore-Swift.h",
+      "-swift-version",
+      "6",
+      "-I",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-L",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-plugin-path",
+      "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "skim",
+      "-driver-use-frontend-path",
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "CoreChecks" : [
+      "FlowReadCore"
+    ],
+    "FlowReadCore" : [
+
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks-entitlement.plist" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<entitlement-plist>"
+        },
+        {
+          "kind" : "virtual",
+          "name" : "<com.apple.security.get-task-allow>"
+        }
+      ],
+      "outputFilePath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks-entitlement.plist"
+    },
+    "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/CoreChecks/main.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks.build/sources"
+    },
+    "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks.build/main.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/Pacing.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/ReaderState.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/ReadingToken.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/SpeedBand.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/Tokenizer.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/CoreChecks.product/Objects.LinkFileList"
+    },
+    "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/FlowReadCore/Pacing.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/FlowReadCore/ReaderState.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/FlowReadCore/ReadingToken.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/FlowReadCore/SpeedBand.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/joe/skim/Sources/FlowReadCore/Tokenizer.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCore.build/sources"
+    },
+    "/Users/joe/skim/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/joe/skim/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "": {
+    "swift-dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCoreTests.build/master.swiftdeps"
+  },
+  "/Users/joe/skim/Tests/FlowReadCoreTests/PacingTests.swift": {
+    "dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCoreTests.build/PacingTests.d",
+    "object": "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCoreTests.build/PacingTests.swift.o",
+    "swiftmodule": "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCoreTests.build/PacingTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCoreTests.build/PacingTests.swiftdeps",
+    "diagnostics": "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCoreTests.build/PacingTests.dia"
+  },
+  "/Users/joe/skim/Tests/FlowReadCoreTests/TokenizerTests.swift": {
+    "dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCoreTests.build/TokenizerTests.d",
+    "object": "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCoreTests.build/TokenizerTests.swift.o",
+    "swiftmodule": "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCoreTests.build/TokenizerTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCoreTests.build/TokenizerTests.swiftdeps",
+    "diagnostics": "/Users/joe/skim/.build/arm64-apple-macosx/debug/FlowReadCoreTests.build/TokenizerTests.dia"
+  }
+}
