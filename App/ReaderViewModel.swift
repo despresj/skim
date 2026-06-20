@@ -43,6 +43,13 @@ final class ReaderViewModel {
     /// looked. Returning to the app without copying never prompts.
     private var lastPasteboardChange = -1
 
+    /// Set when something new was copied while a read was already loaded. Rather
+    /// than silently swapping the text out from under you (and losing your place),
+    /// the view surfaces a gentle "New text — read it?" chip and waits. Detected
+    /// from the prompt-free change count alone, so the clipboard contents are only
+    /// ever read once you opt in by tapping the chip.
+    private(set) var hasPendingClipboard = false
+
     // MARK: Derived state
 
     var currentToken: ReadingToken? {
@@ -98,7 +105,34 @@ final class ReaderViewModel {
             return
         }
         lastPasteboardChange = change
+        // Something new was copied. If a read is already loaded, don't yank it
+        // away — raise the "new text" chip and let the reader decide. We hold off
+        // on reading the contents (and the paste prompt that comes with it) until
+        // they tap it. With nothing loaded yet, there's nothing to protect, so
+        // load straight away.
+        if hasText {
+            hasPendingClipboard = true
+        } else {
+            readPasteboard()
+        }
+    }
+
+    /// The reader tapped "New text — read it?": now read the freshly copied
+    /// contents (this is the opt-in that may surface the paste prompt) and load
+    /// them, replacing the current session and starting from the top.
+    func loadPendingClipboard() {
+        hasPendingClipboard = false
+        let previous = loadedText
         readPasteboard()
+        // Confirm with a soft tick only if the read actually swapped in new text
+        // (a non-text or empty copy leaves the current read untouched).
+        if loadedText != previous { haptics.tick(.newText) }
+    }
+
+    /// The reader dismissed the chip — keep reading what's loaded. The change
+    /// count is already banked, so the same copy never nags again.
+    func dismissPendingClipboard() {
+        hasPendingClipboard = false
     }
 
     /// Explicit "Check Clipboard" tap — always reads the current contents, even
@@ -126,6 +160,7 @@ final class ReaderViewModel {
         tokens = Tokenizer.tokenize(text)
         currentIndex = 0
         state = tokens.isEmpty ? .idle : .ready
+        hasPendingClipboard = false
     }
 
     func restart() {
@@ -143,6 +178,7 @@ final class ReaderViewModel {
         loadedText = nil
         currentIndex = 0
         state = .idle
+        hasPendingClipboard = false
     }
 
     // MARK: Navigation (rail flicks)
@@ -226,6 +262,19 @@ final class ReaderViewModel {
         mode = .precisionHeld
         state = .paused
         haptics.tick(.pause)
+    }
+
+    /// One double-tap, the same gesture both ways: hand off to cruise from a
+    /// resting state, or take the wheel back while cruising. The view fires this
+    /// from anywhere on the surface — canvas *or* thumb rail — so cruise is never
+    /// hidden behind which patch of screen you happened to tap. A no-op mid-hold
+    /// or when finished, where there's nothing to hand off.
+    func toggleCruise() {
+        switch state {
+        case .ready, .paused: enterCruise()
+        case .cruisePlaying: pauseCruise()
+        default: break
+        }
     }
 
     // MARK: Hold-to-read (precision mode)

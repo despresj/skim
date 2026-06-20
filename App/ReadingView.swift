@@ -60,7 +60,7 @@ struct ReadingView: View {
 
                 topContent(height: geo.size.height)
 
-                bottomContent
+                bottomContent(height: geo.size.height)
 
                 canvasTapLayer
 
@@ -71,6 +71,8 @@ struct ReadingView: View {
                 controlZone(width: geo.size.width * controlFraction)
 
                 editControl
+
+                newTextChip
             }
             // One source of truth for the warmth crossfade: when the band changes,
             // every speed-driven color (glow, rail, dial, pivot, progress) eases
@@ -79,6 +81,10 @@ struct ReadingView: View {
             // under Reduce Motion: the colors snap instead.
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.25),
                        value: viewModel.speedWarmth)
+            // Cruise toggle spans the whole surface — including the thumb rail —
+            // and runs *simultaneously* with the rail's hold/steer drag, so a
+            // double-tap anywhere flips cruise without disarming the joystick.
+            .simultaneousGesture(cruiseToggleGesture)
         }
     }
 
@@ -98,8 +104,13 @@ struct ReadingView: View {
                           warmth: viewModel.speedWarmth)
                     // Hold the baseline steady; no per-word animation/jitter.
                     .animation(nil, value: viewModel.currentIndex)
-                    .padding(leftHanded ? .trailing : .leading, 20)
-                    .padding(.top, height * 0.07)
+                    // Pulled inward off the reading-hand edge so the word sits in a
+                    // settled focal column rather than parked against the side.
+                    .padding(leftHanded ? .trailing : .leading, 34)
+                    // Drop into a deliberate upper focal zone — clearly off the
+                    // status bar / Dynamic Island, so the hero word reads as placed,
+                    // not stranded in the corner, and holds a repeatable spot.
+                    .padding(.top, height * 0.25)
                 Spacer(minLength: 0)
             }
         }
@@ -115,7 +126,7 @@ struct ReadingView: View {
          viewModel.state == .paused || viewModel.state == .cruisePlaying)
     }
 
-    private var bottomContent: some View {
+    private func bottomContent(height: CGFloat) -> some View {
         VStack(spacing: 0) {
             Spacer()
             if showsContext {
@@ -123,36 +134,48 @@ struct ReadingView: View {
                     // Centered across the full width so the current word sits in
                     // the middle, with context flowing above and below it.
                     .padding(.horizontal, 28)
-                    .padding(.bottom, 20)
                     .transition(.opacity)
             }
+            // Lift the context block well clear of the home indicator: a fixed gap
+            // below it, with the progress line pinned beneath — so the prose stops
+            // fighting the safe area and reads as part of a settled lower cluster.
+            Spacer(minLength: 0).frame(height: height * 0.13)
             ProgressLine(progress: viewModel.progress, warmth: viewModel.speedWarmth)
                 .padding(.horizontal, 28)
-                .padding(.bottom, 14)
+                // Raised off the bottom safe area for clean breathing room above
+                // the home indicator.
+                .padding(.bottom, 26)
         }
         .animation(.easeOut(duration: 0.25), value: showsContext)
     }
 
-    // MARK: Canvas mode switch (full-surface taps, clear of the thumb rail)
+    // MARK: Canvas hit-test gate (keeps the bare surface tappable)
 
-    /// A transparent full-surface tap catcher, sitting above the passive word/
-    /// context layers but below the rail and back chevron (which win their own
-    /// regions). Double-tap is the single hands-free toggle: when resting it hands
-    /// off to cruise; while cruising it takes the wheel back. The same gesture both
-    /// ways keeps the mental model trivial — and a *double* tap (never a stray
-    /// single) means an accidental brush never stops the flow. Inert while actively
-    /// holding or finished, so the surface stays sacred during a read.
+    /// A transparent full-surface shape that simply guarantees the bare canvas —
+    /// the patches with no word/context drawn on them — reports touches, so the
+    /// root double-tap can fire there too. It carries no gesture of its own: the
+    /// cruise toggle lives on the whole ZStack (`cruiseToggleGesture`) so a
+    /// double-tap works *anywhere*, the thumb rail included, not just the center-
+    /// left. Inert while actively holding or finished, so the surface stays sacred
+    /// during a read.
     @ViewBuilder
     private var canvasTapLayer: some View {
         let base = Color.clear.contentShape(Rectangle())
         switch viewModel.state {
-        case .ready, .paused:
-            base.onTapGesture(count: 2) { viewModel.enterCruise() }
-        case .cruisePlaying:
-            base.onTapGesture(count: 2) { viewModel.pauseCruise() }
+        case .ready, .paused, .cruisePlaying:
+            base
         default:
             base.allowsHitTesting(false)
         }
+    }
+
+    /// The single hands-free toggle, recognized across the *entire* surface as a
+    /// simultaneous gesture so it never fights the thumb rail's hold/steer drag:
+    /// a double-tap hands off to cruise from rest, or takes the wheel back while
+    /// cruising. A *double* tap (never a stray single) means an accidental brush
+    /// never stops the flow; the view model no-ops it mid-hold or when finished.
+    private var cruiseToggleGesture: some Gesture {
+        TapGesture(count: 2).onEnded { viewModel.toggleCruise() }
     }
 
     // MARK: Cruise indicator (hands-free "still flowing" glyph)
@@ -228,7 +251,10 @@ struct ReadingView: View {
                             showHint: viewModel.state == .ready,
                             leftHanded: leftHanded
                         )
-                        .padding(leftHanded ? .leading : .trailing, 12)
+                        // Sit the half-dial's flat edge flush against the screen
+                        // edge — a built-in instrument tucked into the reading-hand
+                        // corner, not a gauge floating in from the side.
+                        .padding(leftHanded ? .leading : .trailing, 2)
                         if leftHanded { Spacer() }
                     }
                     .allowsHitTesting(false)
@@ -278,10 +304,21 @@ struct ReadingView: View {
                 }
 
                 if axis == nil {
-                    // Bias toward the vertical (speed) axis: only a clearly
-                    // sideways move commits to a flick, so a near-vertical or
-                    // diagonal lift-off never misfires replay/skip.
-                    axis = abs(dx) > abs(dy) * 1.4 ? .horizontal : .vertical
+                    // Commit an axis only once one direction *clearly* dominates,
+                    // and re-evaluate every frame until then. A still-diagonal move
+                    // stays uncommitted rather than defaulting to vertical — which
+                    // matters for the forward (→) flick: on a right-edge rail a
+                    // rightward thumb *extends* toward the bezel and naturally arcs
+                    // diagonally, so its first travel past the deadzone is rarely
+                    // 1.4× horizontal. Defaulting that to vertical froze it into a
+                    // speed change forever (the axis never re-evaluated), so skip
+                    // could never fire while replay — a clean leftward curl — did.
+                    // Now the flick resolves as soon as dx pulls clearly ahead.
+                    if abs(dx) > abs(dy) * 1.4 {
+                        axis = .horizontal
+                    } else if abs(dy) > abs(dx) * 1.4 {
+                        axis = .vertical
+                    }
                 }
 
                 switch axis {
@@ -350,6 +387,94 @@ struct ReadingView: View {
     private var editVisible: Bool {
         viewModel.state == .ready || viewModel.state == .paused
     }
+
+    // MARK: New-text pickup chip
+
+    /// A gentle, tappable prompt that something fresh was copied while a read was
+    /// already loaded — so the clipboard-first flow never silently swaps the text
+    /// out from under you. Tap it to load the new text; the small ✕ keeps what
+    /// you're reading. This is an interrupt/queue action, so it floats in the
+    /// lower thumb zone on the reading-hand side (mirrored for left-handers) where
+    /// the thumb already rests — not as a top banner. Sits in the quiet gap above
+    /// the bottom progress line / home indicator, below the vertically-centered
+    /// speed dial and the faded context strip, so it never covers the focal word
+    /// or the live prose. Same surface/hairline family as the other overlays.
+    @ViewBuilder
+    private var newTextChip: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            if viewModel.hasPendingClipboard && pickupVisible {
+                HStack(spacing: 0) {
+                    if !leftHanded { Spacer(minLength: 0) }
+                    NewTextChip(
+                        onRead: { viewModel.loadPendingClipboard() },
+                        onDismiss: { viewModel.dismissPendingClipboard() }
+                    )
+                    .padding(leftHanded ? .leading : .trailing, 16)
+                    if leftHanded { Spacer(minLength: 0) }
+                }
+                // Lifted clear of the progress line + home indicator, landing in
+                // the calm band beneath the context strip's lower fade.
+                .padding(.bottom, 64)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.34, dampingFraction: 0.82),
+                   value: viewModel.hasPendingClipboard)
+    }
+
+    /// Only ever offer the pickup at rest — never mid-flow — so the sacred
+    /// surface stays clear while words are actually streaming. (Foregrounding
+    /// already drops a live read to `paused`, so in practice the chip lands here.)
+    private var pickupVisible: Bool {
+        viewModel.state == .ready || viewModel.state == .paused ||
+        viewModel.state == .completed
+    }
+}
+
+/// The "new text copied" pickup chip: a clipboard glyph, a short label, and a
+/// quiet dismiss. A compact floating pill for the lower thumb zone — the body is
+/// one tap-to-load button; the trailing ✕ keeps the current read. Styled to match
+/// the flick-flash / back-chevron family.
+private struct NewTextChip: View {
+    let onRead: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 11) {
+            Button(action: onRead) {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.readingAccent)
+                    Text("New text — read it?")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.readingForeground)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Rectangle()
+                .fill(Color.readingBorder)
+                .frame(width: 1, height: 18)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.readingMuted)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .padding(.vertical, 10)
+        .background(Color.readingSurface.opacity(0.94), in: Capsule())
+        .overlay(Capsule().stroke(Color.readingBorder, lineWidth: 1))
+        .shadow(color: .black.opacity(0.28), radius: 14, y: 5)
+    }
 }
 
 /// A calm paragraph of the surrounding prose at the foot of the screen, centered
@@ -374,9 +499,9 @@ private struct ContextStrip: View {
         )
 
         (
-            phrase(w.before.isEmpty ? "" : w.before + " ", Color.readingMuted.opacity(0.6))
+            phrase(w.before.isEmpty ? "" : w.before + " ", Color.readingMuted.opacity(0.82))
             + phrase(w.current, Color.readingForeground).bold()
-            + phrase(w.after.isEmpty ? "" : " " + w.after, Color.readingMuted.opacity(0.6))
+            + phrase(w.after.isEmpty ? "" : " " + w.after, Color.readingMuted.opacity(0.82))
         )
         .font(.system(size: 18, weight: .regular, design: .rounded))
         .lineSpacing(6)
@@ -503,8 +628,8 @@ private struct SpeedDial: View {
 
     var body: some View {
         GeometryReader { geo in
-            let lw: CGFloat = isActive ? 6 : 4
-            let pad: CGFloat = lw + 9
+            let lw: CGFloat = isActive ? 4 : 3
+            let pad: CGFloat = lw + 8
             let radius = min(geo.size.height / 2, geo.size.width) - pad
             // The hub rides the rail edge; the arc bulges into the screen.
             let hub = CGPoint(x: leftHanded ? pad : geo.size.width - pad,
@@ -531,7 +656,7 @@ private struct SpeedDial: View {
                     let f = count > 1 ? Double(i) / Double(count - 1) : 0
                     let major = (i == 0 || i == count - 1)
                     TickMark(hub: hub, radius: radius,
-                             length: major ? 11 : 7, deg: startDeg + f * sweepDeg)
+                             length: major ? 8 : 5, deg: startDeg + f * sweepDeg)
                         .stroke(tickColor(lit: f <= frac + 0.0001),
                                 style: StrokeStyle(lineWidth: 2, lineCap: .round))
                         .animation(.easeOut(duration: 0.15), value: index)
@@ -539,26 +664,28 @@ private struct SpeedDial: View {
 
                 // The needle, springing between detents. Its glow swells with
                 // warmth so the dial looks more alive at speed without ever flaring.
-                Needle(hub: hub, length: radius - 4,
+                Needle(hub: hub, length: radius - 3,
                        startDeg: startDeg, sweepDeg: sweepDeg, frac: frac)
                     .fill(isActive ? accent
                                    : Color.readingForeground.opacity(0.5))
                     .shadow(color: isActive ? accent.opacity(0.4 + warmth * 0.35) : .clear,
-                            radius: isActive ? 8 + warmth * 6 : 8)
+                            radius: isActive ? 5 + warmth * 4 : 5)
                     .animation(snap, value: index)
 
                 // Hub cap — the mechanical pivot.
                 Circle()
                     .fill(isActive ? accent : Color.readingForeground.opacity(0.5))
-                    .frame(width: isActive ? 15 : 11, height: isActive ? 15 : 11)
-                    .overlay(Circle().fill(Color.readingBackground).frame(width: 4, height: 4))
+                    .frame(width: isActive ? 11 : 8, height: isActive ? 11 : 8)
+                    .overlay(Circle().fill(Color.readingBackground).frame(width: 3, height: 3))
                     .position(hub)
                     .animation(.easeOut(duration: 0.18), value: isActive)
 
                 readout(hub: hub, radius: radius)
             }
         }
-        .frame(width: 116, height: 216)
+        // A compact instrument — roughly 40% smaller than before — so it reads as
+        // a supporting speed gauge near the thumb, not the app's headline feature.
+        .frame(width: 74, height: 138)
     }
 
     private func tickColor(lit: Bool) -> Color {
@@ -575,16 +702,17 @@ private struct SpeedDial: View {
             if isActive {
                 VStack(spacing: 0) {
                     Text(label)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color.readingForeground)
                     Text("\(wpm)")
-                        .font(.system(size: 23, weight: .bold, design: .rounded))
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
                         .foregroundStyle(accent)
                     Text("wpm")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .font(.system(size: 8, weight: .medium, design: .rounded))
                         .foregroundStyle(Color.readingMuted)
                 }
                 .transition(.opacity)
+                .fixedSize()
             } else if showHint {
                 VStack(spacing: 4) {
                     Image(systemName: "chevron.up")
@@ -740,13 +868,15 @@ private struct ProgressLine: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.readingForeground.opacity(0.08))
+                Capsule().fill(Color.readingForeground.opacity(0.09))
+                // Brighter, slightly more present amber fill so progress reads
+                // clearly without ever shouting — still tertiary to the word.
                 Capsule()
-                    .fill(Color.readingAccent(warmth: warmth).opacity(0.5 + warmth * 0.3))
+                    .fill(Color.readingAccent(warmth: warmth).opacity(0.72 + warmth * 0.22))
                     .frame(width: max(0, min(1, progress)) * geo.size.width)
             }
         }
-        .frame(height: 2)
+        .frame(height: 3)
     }
 }
 

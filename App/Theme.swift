@@ -108,22 +108,43 @@ extension Color {
     }
 }
 
-/// Speed-responsive warmth: a soft amber radial glow that blooms from the
-/// reading-hand edge and swells as the band climbs. Barely-there at calm speeds,
-/// warm and present at a blast — an *energy* state, never an alarm. Layered above
-/// the base `ReadingCanvas`, so the deep, premium background still dominates and
-/// the main word keeps its contrast.
+/// Speed-responsive warmth: soft, diffuse amber light pooled around the gauge on
+/// the reading-hand edge. Its hue rides the speed (muted amber cruising → richer
+/// orange-gold at a blast) and it swells as the band climbs — ambient energy in
+/// the air, never a panel or an alarm. Two overlaid radial blooms keep the falloff
+/// atmospheric rather than banded. Layered above the base `ReadingCanvas`, so the
+/// deep, premium background still dominates and the main word keeps its contrast.
 struct ReadingWarmth: View {
     let warmth: Double
     let leftHanded: Bool
 
     var body: some View {
-        RadialGradient(
-            colors: [Color.readingAccentHot.opacity(0.05 + warmth * 0.16), .clear],
-            center: leftHanded ? .leading : .trailing,
-            startRadius: 40,
-            endRadius: 560
-        )
+        // Hue rides the speed, in the same amber family as the gauge: a muted
+        // amber while cruising, warming toward a richer orange-gold at a blast —
+        // never red, never an alarm.
+        let hue = Color.readingAccent(warmth: warmth)
+        // Barely-there when calm; warm and present, never loud, at full tilt.
+        let peak = 0.045 + warmth * 0.13
+
+        // Two overlaid radial blooms pooled on the reading-hand edge — exactly
+        // where the gauge is mounted — so the warmth reads as ambient light
+        // gathering around the instrument, not a vertical panel pasted to the side.
+        // The broader, fainter wash softens the falloff so nothing looks banded.
+        let edgeX: CGFloat = leftHanded ? 0 : 1
+        return ZStack {
+            RadialGradient(
+                colors: [hue.opacity(peak), hue.opacity(peak * 0.3), .clear],
+                center: UnitPoint(x: edgeX, y: 0.5),
+                startRadius: 20,
+                endRadius: 720
+            )
+            RadialGradient(
+                colors: [hue.opacity(peak * 0.55), .clear],
+                center: UnitPoint(x: leftHanded ? 0.18 : 0.82, y: 0.58),
+                startRadius: 80,
+                endRadius: 540
+            )
+        }
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }
@@ -173,6 +194,10 @@ struct SecondaryPillStyle: ButtonStyle {
             .font(.headline)
             .foregroundStyle(Color.readingForeground)
             .padding(.vertical, 15)
+            // Breathing room on the ends so the label never hugs the capsule's
+            // rounded edges — needed when the pill sizes to content (e.g. the
+            // completion screen's `.fixedSize`) rather than stretching full width.
+            .padding(.horizontal, 28)
             .frame(maxWidth: .infinity)
             .background(Color.readingSurface, in: Capsule())
             .overlay(Capsule().stroke(Color.readingBorder, lineWidth: 1))

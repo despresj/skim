@@ -11,6 +11,7 @@ final class Haptics {
         case rewind      // flicked left — jumped back 12 words
         case forward     // flicked right — jumped ahead 12 words
         case finish      // reached the end
+        case newText     // loaded freshly copied text via the "new text" chip
     }
 
     private let light = UIImpactFeedbackGenerator(style: .light)
@@ -50,6 +51,7 @@ final class Haptics {
         case .rewind:     medium.impactOccurred(intensity: 0.7)
         case .forward:    medium.impactOccurred(intensity: 0.5)
         case .finish:     heavy.impactOccurred()
+        case .newText:    soft.impactOccurred(intensity: 0.6)
         }
     }
 }

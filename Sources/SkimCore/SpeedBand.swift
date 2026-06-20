@@ -22,8 +22,10 @@ public struct SpeedBand: Equatable, Sendable {
     public static let allCases: [SpeedBand] =
         stride(from: minWPM, through: maxWPM, by: step).map(SpeedBand.init(wpm:))
 
-    /// A comfortable starting speed near the calm end.
-    public static let cruise = SpeedBand(wpm: 350)
+    /// A comfortable starting speed near the calm end. Sits squarely in the
+    /// "Cruise" band so a first-run / demo opens calm and inviting — never at a
+    /// scary Blast — leaving the upper speeds as something you deliberately ramp into.
+    public static let cruise = SpeedBand(wpm: 400)
 
     /// Next faster speed, clamped at `maxWPM`.
     public func faster() -> SpeedBand { SpeedBand(wpm: min(Self.maxWPM, wpm + Self.step)) }

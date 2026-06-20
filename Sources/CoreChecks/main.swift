@@ -77,6 +77,117 @@ do {
     expectEqual(t[1].delayMultiplier, 2.8, "last word of paragraph gets a breath")
 }
 
+print("Tokenizer (lock-in current behavior)")
+do {
+    // Whitespace tokenization: tabs/newlines within a paragraph all split words.
+    let t = Tokenizer.tokenize("alpha\tbeta gamma here")
+    expectEqual(t.map(\.text), ["alpha", "beta", "gamma", "here"], "tab and space both split words")
+}
+do {
+    // Blank-line paragraph split (multiple blank lines collapse to one break).
+    let t = Tokenizer.tokenize("a b\n\n\nc d")
+    expectEqual(t.map(\.paragraphIndex), [0, 0, 1, 1], "any run of blank lines splits paragraphs")
+}
+do {
+    // Punctuation stays attached to its token; never its own token.
+    let t = Tokenizer.tokenize("hello, world. done here")
+    expectEqual(t.map(\.text), ["hello,", "world.", "done", "here"], "punctuation stays attached to the word")
+}
+do {
+    // Quotes/brackets wrapping sentence punctuation still count as a sentence end.
+    let t = Tokenizer.tokenize(#"the pipeline." next here"#)
+    expectEqual(t[1].delayMultiplier, 2.0, #"closing quote around period -> 2.0"#)
+    let u = Tokenizer.tokenize(#"the pipeline.) next here"#)
+    expectEqual(u[1].delayMultiplier, 2.0, "closing paren around period -> 2.0")
+}
+do {
+    // Paragraph-final token always gets the 2.8 breath, even mid-multiplier.
+    let t = Tokenizer.tokenize("short word\n\nnext")
+    expectEqual(t[1].delayMultiplier, 2.8, "paragraph-final word gets 2.8 breath")
+}
+do {
+    // Max-multiplier-wins: a long word that also ends a sentence gets 2.0, not 1.15.
+    let t = Tokenizer.tokenize("acquisition. here")
+    expectEqual(t[0].delayMultiplier, 2.0, "max multiplier wins (sentence 2.0 over long-word 1.15)")
+}
+
+print("Tokenizer (abbreviations)")
+do {
+    // "Mr." should not be a sentence end despite the trailing period.
+    let t = Tokenizer.tokenize("Mr. Smith arrived here")
+    expect(t[0].delayMultiplier < 2.0, "Mr. does not get the sentence pause")
+    expectEqual(t.map(\.sentenceIndex), [0, 0, 0, 0], "Mr. does not bump sentenceIndex")
+}
+do {
+    let t = Tokenizer.tokenize("e.g. this case here")
+    expect(t[0].delayMultiplier < 2.0, "e.g. does not get the sentence pause")
+    expectEqual(t[0].sentenceIndex, 0, "e.g. does not bump sentenceIndex")
+}
+do {
+    // Four abbreviations in a row should count as one (still-open) sentence.
+    let t = Tokenizer.tokenize("U.S.A. e.g. i.e. etc. done here")
+    expectEqual(t.map(\.sentenceIndex), [0, 0, 0, 0, 0, 0], "abbreviation run is not four sentences")
+}
+do {
+    // Abbreviation wrapped in quotes/brackets is still recognized.
+    let t = Tokenizer.tokenize(#"("e.g." this) case here"#)
+    expect(t[0].delayMultiplier < 2.0, "quoted/bracketed e.g. still recognized as abbreviation")
+}
+do {
+    // A genuine sentence-ending word still works normally.
+    let t = Tokenizer.tokenize("done. next here")
+    expectEqual(t[0].delayMultiplier, 2.0, "normal sentence end still pauses 2.0")
+    expectEqual(t[0].sentenceIndex, 0, "normal sentence end token sits in sentence 0")
+    expectEqual(t[1].sentenceIndex, 1, "normal sentence end bumps sentenceIndex")
+}
+
+print("Tokenizer (em/en dash clause)")
+do {
+    let t = Tokenizer.tokenize("Wait—really here")
+    expectEqual(t.count, 2, "em-dash does not split the token")
+    expectEqual(t[0].text, "Wait—really", "em-dash token text preserved")
+    expectEqual(t[0].delayMultiplier, 1.4, "internal em-dash -> clause pause")
+}
+do {
+    let t = Tokenizer.tokenize("Wait–really here")  // en-dash
+    expectEqual(t[0].delayMultiplier, 1.4, "internal en-dash -> clause pause")
+}
+do {
+    let t = Tokenizer.tokenize("Wait—really?! here")
+    expectEqual(t.count, 2, "em-dash + terminal punct stays one token")
+    expectEqual(t[0].delayMultiplier, 2.0, "sentence pause beats em-dash clause pause")
+}
+
+print("Tokenizer (complex numbers)")
+do {
+    let t = Tokenizer.tokenize("1,000,000 dollars here")
+    expect(t[0].delayMultiplier >= 1.15, "1,000,000 gets at least long-word pacing")
+}
+do {
+    let t = Tokenizer.tokenize("worth $250,000 here")
+    expect(t[1].delayMultiplier >= 1.15, "$250,000 gets at least long-word pacing")
+}
+do {
+    let t = Tokenizer.tokenize("about 12.5% here")
+    expect(t[1].delayMultiplier >= 1.15, "12.5% gets at least long-word pacing")
+}
+do {
+    let t = Tokenizer.tokenize("100000 plain here")
+    expect(t[0].delayMultiplier >= 1.15, "6+ digit number gets at least long-word pacing")
+}
+do {
+    // 3.14 must not be treated as a sentence end (period is internal, not terminal).
+    let t = Tokenizer.tokenize("3.14 pi here")
+    expect(t[0].delayMultiplier < 2.0, "3.14 does not sentence-pause")
+    expectEqual(t[0].sentenceIndex, 0, "3.14 does not bump sentenceIndex")
+}
+do {
+    // 3.14. with an extra terminal period MUST sentence-pause.
+    let t = Tokenizer.tokenize("3.14. Next here")
+    expectEqual(t[0].delayMultiplier, 2.0, "3.14. with terminal period sentence-pauses (2.0)")
+    expectEqual(t[1].sentenceIndex, 1, "3.14. bumps sentenceIndex")
+}
+
 print("Markdown")
 do {
     expectEqual(Markdown.strip("**bold** and *italic*"), "bold and italic", "unwraps bold and italic")
@@ -146,6 +257,8 @@ expectEqual(SpeedBand(wpm: 1000).slower(), SpeedBand(wpm: 975), "slower steps do
 expectEqual(SpeedBand(wpm: 300).slower(), SpeedBand(wpm: 300), "slower clamps at 300")
 expectEqual(SpeedBand(wpm: 300).label, "Calm", "low end reads as Calm")
 expectEqual(SpeedBand(wpm: 1000).label, "Blast", "top end reads as Blast")
+expectEqual(SpeedBand.cruise.wpm, 400, "default cruise opens at a calm 400 wpm")
+expectEqual(SpeedBand.cruise.label, "Cruise", "default opens in the Cruise band, never Blast")
 expectEqual(SpeedBand(wpm: 300).warmth, 0.0, "slowest band is coolest (warmth 0)")
 expectEqual(SpeedBand(wpm: 1000).warmth, 1.0, "fastest band is warmest (warmth 1)")
 expectEqual(SpeedBand(wpm: 650).warmth, 0.5, "midpoint band is half-warm")

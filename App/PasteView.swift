@@ -1,52 +1,147 @@
 import SwiftUI
 
-/// The calm empty state — shown only when nothing is loaded (a cold launch with
-/// an empty clipboard, or after tapping "back" in the reader to go read something
-/// else). Skim is clipboard-first: there's no form to fill in. Copy text anywhere
-/// and it's waiting the moment you switch in; this screen just says so. The single
-/// quiet "Check Clipboard" button covers the rare case where iOS withholds the
-/// copied text until you explicitly ask for it.
+/// The calm entry surface — shown when nothing is loaded (a cold launch with an
+/// empty clipboard, or after backing out of the reader to read something else).
+///
+/// Skim is clipboard-first and immediate: copied text is picked up automatically
+/// the moment you switch in (see `ReaderViewModel.loadClipboard`), dropping you
+/// straight into the reader with no button to press. This screen is the fallback
+/// for when there's nothing on the clipboard yet — so it leads with the one thing
+/// it needs: a place to put text. Type or paste into the field and, after a short
+/// settle, Skim begins on its own. No "Start Reading", no hero "Paste" button; the
+/// field *is* the door. A quiet "Use clipboard" link covers the rare case where
+/// iOS withheld the copied text from the automatic read.
 struct PasteView: View {
     let viewModel: ReaderViewModel
+
+    /// What the user has typed or pasted. When it settles into usable text, the
+    /// reader loads it automatically (see the debounce in `.task` below).
+    @State private var draft = ""
+    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         ZStack {
             ReadingCanvas()
 
-            VStack(spacing: 28) {
-                Spacer()
+            VStack(spacing: 0) {
+                // Content rides above center — a confident, premium upper third
+                // rather than a debug screen floating in dead space.
+                Spacer(minLength: 24)
 
-                VStack(spacing: 12) {
-                    Text("Skim")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .tracking(3)
-                        .foregroundStyle(Color.readingMuted)
+                header
 
-                    Text("Copy text, then open Skim")
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.readingForeground)
-                        .multilineTextAlignment(.center)
+                inputField
+                    .padding(.top, 28)
 
-                    Text("Skim reads whatever text is on your clipboard.")
-                        .font(.system(size: 15, weight: .regular, design: .rounded))
-                        .foregroundStyle(Color.readingMuted)
-                        .multilineTextAlignment(.center)
-                }
+                useClipboard
+                    .padding(.top, 14)
 
-                // Quiet manual fallback. The real flow is automatic, so this is
-                // deliberately small and outlined — never the headline action.
-                Button("Check Clipboard") {
-                    viewModel.pasteFromClipboard()
-                }
-                .buttonStyle(SecondaryPillStyle())
-                .fixedSize(horizontal: true, vertical: false)
+                // Twice the slack below the content as above pins it high.
+                Spacer(minLength: 24)
+                Spacer(minLength: 24)
 
-                Spacer()
-
-                HandPicker(viewModel: viewModel)
+                settingsTray
             }
-            .padding(28)
+            .padding(.horizontal, 28)
+            .padding(.bottom, 8)
         }
+        // Debounced auto-start: each keystroke/paste restarts this task, so we
+        // only commit once the text has settled (~400ms). Pasted articles clear
+        // the threshold instantly and begin a beat later; it never feels jumpy.
+        .task(id: draft) {
+            let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.count >= 2 else { return }
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            viewModel.load(draft)
+        }
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        VStack(spacing: 14) {
+            Text("Skim")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .tracking(4)
+                .foregroundStyle(Color.readingMuted)
+
+            Text("Read faster without losing the thread.")
+                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.readingForeground)
+                .multilineTextAlignment(.center)
+                .lineSpacing(2)
+
+            Text("Paste text or copy something before opening Skim. We’ll take it from there.")
+                .font(.system(size: 16, weight: .regular, design: .rounded))
+                .foregroundStyle(Color.readingMuted)
+                .multilineTextAlignment(.center)
+                .lineSpacing(2)
+                .padding(.horizontal, 8)
+        }
+    }
+
+    // MARK: Input
+
+    /// The hero. A soft, generous text well — the obvious thing to act on. Typing
+    /// or pasting here is the whole interaction; there's no submit.
+    private var inputField: some View {
+        TextEditor(text: $draft)
+            .focused($fieldFocused)
+            .font(.system(size: 18, weight: .regular, design: .rounded))
+            .foregroundStyle(Color.readingForeground)
+            .tint(Color.readingAccent)
+            .scrollContentBackground(.hidden)
+            // A fixed launch-pad height — short enough to read as "drop text and
+            // go", not an editor slab. TextEditor is greedy, so this caps it
+            // outright; longer pastes simply scroll within.
+            .frame(height: 150)
+            .padding(16)
+            .background(Color.readingSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(fieldFocused ? Color.readingAccent.opacity(0.5) : Color.readingBorder,
+                            lineWidth: 1)
+            )
+            .overlay(alignment: .topLeading) {
+                // TextEditor has no native placeholder; align this to where its
+                // text actually begins (outer padding + the editor's own inset).
+                if draft.isEmpty {
+                    Text("Paste anything here…")
+                        .font(.system(size: 18, weight: .regular, design: .rounded))
+                        .foregroundStyle(Color.readingMuted)
+                        .padding(.leading, 21)
+                        .padding(.top, 24)
+                        .allowsHitTesting(false)
+                }
+            }
+            .animation(.easeOut(duration: 0.18), value: fieldFocused)
+    }
+
+    /// Quiet fallback for when iOS withheld the clipboard from the automatic read
+    /// — deliberately a plain muted link, never a hero button.
+    private var useClipboard: some View {
+        Button("Use clipboard") {
+            viewModel.pasteFromClipboard()
+        }
+        .font(.system(size: 14, weight: .medium, design: .rounded))
+        .foregroundStyle(Color.readingMuted)
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Settings tray
+
+    /// A calm bottom tray for set-once preferences, sitting under a hairline so it
+    /// reads as settings rather than part of the entry flow.
+    private var settingsTray: some View {
+        HandPicker(viewModel: viewModel)
+            .padding(.top, 18)
+            .padding(.horizontal, 4)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(Color.readingBorder)
+                    .frame(height: 1)
+            }
     }
 }
 
@@ -58,7 +153,7 @@ private struct HandPicker: View {
     var body: some View {
         HStack(spacing: 8) {
             Text("Reading hand")
-                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .font(.system(size: 15, weight: .medium, design: .rounded))
                 .foregroundStyle(Color.readingMuted)
             Spacer()
             HStack(spacing: 4) {

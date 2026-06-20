@@ -8,6 +8,15 @@ struct SkimApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(viewModel: viewModel)
+                // Dev shortcut: `SKIM_SAMPLE` (set in the Xcode scheme or the
+                // launch env) preloads sample prose instead of the clipboard, so
+                // the reading surface can be opened without a copy step.
+                .task {
+                    if let sample = ProcessInfo.processInfo.environment["SKIM_SAMPLE"],
+                       !sample.isEmpty {
+                        viewModel.load(sample)
+                    }
+                }
         }
         // Grab the clipboard on launch and every time the app comes forward,
         // so whatever you just copied is waiting for you the moment you switch in.
