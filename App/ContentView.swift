@@ -9,6 +9,8 @@ struct ContentView: View {
         Group {
             if viewModel.pendingLink != nil {
                 LinkFallbackView(viewModel: viewModel)
+            } else if let resume = viewModel.pendingResume, viewModel.state == .idle {
+                ResumeView(viewModel: viewModel, candidate: resume)
             } else if viewModel.state == .idle {
                 PasteView(viewModel: viewModel)
             } else if viewModel.state == .completed {

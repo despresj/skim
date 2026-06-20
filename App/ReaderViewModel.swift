@@ -69,8 +69,22 @@ final class ReaderViewModel {
     /// Pasteboard generation we last inspected. Comparing change counts is
     /// prompt-free; only reading the contents triggers iOS's "Allow Paste". So we
     /// read — and risk the prompt — only when something was copied since we last
-    /// looked. Returning to the app without copying never prompts.
-    private var lastPasteboardChange = -1
+    /// looked. Returning to the app without copying never prompts. Persisted so a
+    /// cold launch can tell "nothing new was copied since last time" (→ offer
+    /// resume) from "fresh text is waiting" (→ clipboard-first auto-load).
+    private var lastPasteboardChange: Int {
+        get { UserDefaults.standard.object(forKey: "skim.lastPasteboardChange") as? Int ?? -1 }
+        set { UserDefaults.standard.set(newValue, forKey: "skim.lastPasteboardChange") }
+    }
+
+    /// A resumable past read offered on the entry screen when there's no fresh
+    /// clipboard text to open. Drives `ResumeView` (resume candidate + recents).
+    /// `nil` whenever a read is loaded or there's nothing to resume.
+    private(set) var pendingResume: ReadItem?
+
+    /// The recent reads backing the library list. Observable so swipe-deletes and
+    /// resumes update the list live; refreshed whenever `ResumeView` appears.
+    private(set) var recents: [ReadItem] = []
 
     /// Set when something new was copied while a read was already loaded. Rather
     /// than silently swapping the text out from under you (and losing your place),
@@ -158,9 +172,11 @@ final class ReaderViewModel {
     func loadClipboard() {
         let change = UIPasteboard.general.changeCount
         // Nothing copied since we last looked → don't touch the contents, so iOS
-        // never shows the paste prompt just for coming back to the app.
+        // never shows the paste prompt just for coming back to the app. With
+        // nothing loaded, this is the "no new input" case: offer to resume the most
+        // recent read (falling back to the paste screen if there's nothing to resume).
         guard change != lastPasteboardChange else {
-            if !hasText { state = .idle }
+            if !hasText { offerResumeOrIdle() }
             return
         }
         lastPasteboardChange = change
@@ -214,7 +230,7 @@ final class ReaderViewModel {
         switch DeepLinkParser.parse(url) {
         case .text(let text):
             pendingLink = nil
-            loadAndCruise(text, at: .imported)
+            loadAndCruise(text, at: .imported, source: .deepLink)
         case .url(let link):
             pendingLink = link
         case nil:
@@ -229,10 +245,12 @@ final class ReaderViewModel {
     /// duplicated, and leaves normal manual paste/input (which routes through
     /// `load` alone, arming `.ready`) untouched. Empty text never reaches here —
     /// the parser rejects it — but we guard so a non-`.ready` load is a quiet no-op.
-    private func loadAndCruise(_ text: String, at band: SpeedBand) {
-        load(text)
+    private func loadAndCruise(_ text: String, at band: SpeedBand, source: ReadSource, sourcePath: String? = nil) {
+        load(text, source: source, sourcePath: sourcePath)
         guard state == .ready else { return }
         self.band = band
+        // Bank the import speed onto the fresh record (load recorded the prior band).
+        saveProgress()
         enterCruise()
     }
 
@@ -249,7 +267,7 @@ final class ReaderViewModel {
         lastPasteboardChange = UIPasteboard.general.changeCount
         guard let text = Self.readImportedText(from: url) else { return }
         pendingLink = nil
-        loadAndCruise(text, at: .imported)
+        loadAndCruise(text, at: .imported, source: .file, sourcePath: url.path)
     }
 
     /// Read a `.txt` file's contents as sanitized text, or `nil` if it can't be
@@ -288,14 +306,42 @@ final class ReaderViewModel {
         }
     }
 
-    /// Tokenize freshly loaded text and arm the reader at the first word.
-    func load(_ text: String) {
+    /// Tokenize freshly loaded text, arm the reader at the first word, and record a
+    /// durable `read_items` row so the read can be resumed and listed under recents.
+    /// `source` notes where the text came from (manual paste, file, deep link, …).
+    func load(_ text: String, source: ReadSource = .manual, sourcePath: String? = nil) {
         cancelPlayback()
         loadedText = text
         tokens = Tokenizer.tokenize(text)
         currentIndex = 0
         state = tokens.isEmpty ? .idle : .ready
         hasPendingClipboard = false
+        pendingResume = nil
+        recordLoadedRead(text, source: source, sourcePath: sourcePath)
+    }
+
+    /// Create the persistent record for freshly loaded text and adopt its id as the
+    /// current read. Empty text (or a missing store) records nothing and clears the
+    /// id — so empty/failed imports never leave a row behind.
+    private func recordLoadedRead(_ text: String, source: ReadSource, sourcePath: String?) {
+        guard let store, !tokens.isEmpty else { currentReadId = nil; return }
+        let now = Date()
+        let item = ReadItem(
+            title: ReadItem.deriveTitle(from: text),
+            body: text,
+            source: source,
+            sourcePath: sourcePath,
+            textHash: TextHash.of(text),
+            wordCount: tokens.count,
+            createdAt: now,
+            updatedAt: now,
+            lastTokenIndex: 0,
+            lastWpm: wpm,
+            readingHand: handString,
+            status: .active
+        )
+        try? store.upsertReadItem(item)
+        currentReadId = item.id
     }
 
     func restart() {
@@ -317,8 +363,21 @@ final class ReaderViewModel {
         band = .imported
         mode = .cruise
         state = .cruisePlaying
+        reactivateRead()
         haptics.tick(.start)
         startPlayback()
+    }
+
+    /// Flip a finished read back to `active` at the top, so a "Read Again" leaves it
+    /// resumable again rather than stranded as completed. A no-op without a record.
+    private func reactivateRead() {
+        guard let store, let id = currentReadId, var item = try? store.readItem(id: id) else { return }
+        item.status = .active
+        item.completedAt = nil
+        item.lastTokenIndex = 0
+        item.lastWpm = wpm
+        item.updatedAt = Date()
+        try? store.upsertReadItem(item)
     }
 
     /// Drop the loaded text and return to the calm empty state. Backs the reader's
@@ -326,11 +385,17 @@ final class ReaderViewModel {
     /// else," handing off to whatever you copy next.
     func clearText() {
         cancelPlayback()
+        // The read stays on disk (resumable); we just let go of it here.
+        saveProgress()
         tokens = []
         loadedText = nil
         currentIndex = 0
+        currentReadId = nil
         state = .idle
         hasPendingClipboard = false
+        // Back out to the library if there's anything to resume, else the paste
+        // screen — so recents stay reachable, not just offered at cold launch.
+        refreshPendingResume()
     }
 
     // MARK: Navigation (rail flicks)
@@ -440,6 +505,8 @@ final class ReaderViewModel {
         guard isScrubbing else { return }
         isScrubbing = false
         scrubQuarter = -1
+        // The cursor moved — persist the new spot whether or not we resume.
+        saveProgress()
         guard scrubWasPlaying else { return }
         if currentIndex >= tokens.count - 1 {
             finish()
@@ -462,6 +529,7 @@ final class ReaderViewModel {
             cancelPlayback()
             mode = .precisionHeld
             state = .paused
+            saveProgress()
         }
     }
 
@@ -494,6 +562,7 @@ final class ReaderViewModel {
         cancelPlayback()
         mode = .precisionHeld
         state = .paused
+        saveProgress()
         haptics.tick(.pause)
     }
 
@@ -527,6 +596,7 @@ final class ReaderViewModel {
         guard state == .precisionHeld else { return }
         cancelPlayback()
         state = .paused
+        saveProgress()
         haptics.tick(.pause)
     }
 
@@ -538,6 +608,77 @@ final class ReaderViewModel {
         cancelPlayback()
         mode = .precisionHeld
         state = .paused
+        // Leaving the foreground is a natural save point — bank the position now.
+        saveProgress()
+    }
+
+    // MARK: Persistence & resume
+
+    /// The current reading hand as the stored string ("left" / "right").
+    private var handString: String { isLeftHanded ? "left" : "right" }
+
+    /// Persist the resume cursor (position, speed, hand) for the current read. The
+    /// hot path — called on every pause, scrub-release, background, and periodic
+    /// checkpoint. A cheap single-row UPDATE; a no-op without a record or store.
+    private func saveProgress() {
+        guard let store, let id = currentReadId, !tokens.isEmpty else { return }
+        try? store.updatePosition(id: id, tokenIndex: currentIndex, wpm: wpm,
+                                  readingHand: handString, updatedAt: Date())
+    }
+
+    /// The "no fresh clipboard" entry decision: offer the most recent resumable
+    /// read if there is one, otherwise drop to the calm paste screen.
+    private func offerResumeOrIdle() {
+        refreshPendingResume()
+        if pendingResume == nil { state = .idle }
+    }
+
+    /// Re-read the resume candidate from the store. Sets `pendingResume` to the most
+    /// recent active read, or `nil` if there's nothing to resume.
+    private func refreshPendingResume() {
+        pendingResume = (try? store?.mostRecentActive()) ?? nil
+    }
+
+    /// Reload the library list from the store (newest-touched first). Called when
+    /// `ResumeView` appears and after a delete, so the displayed list tracks disk.
+    func refreshRecents() {
+        recents = (try? store?.recentReads(limit: 20)) ?? []
+    }
+
+    /// Open a stored read where it was left off: restore its body, position, speed,
+    /// and reading hand, and arm the reader at that spot (no autoplay — a deliberate
+    /// resume waits for the thumb or a double-tap). Reuses the existing record. A
+    /// no-op if the body has gone empty.
+    func resume(_ item: ReadItem) {
+        cancelPlayback()
+        let toks = Tokenizer.tokenize(item.body)
+        guard !toks.isEmpty else { return }
+        pendingResume = nil
+        hasPendingClipboard = false
+        loadedText = item.body
+        tokens = toks
+        currentReadId = item.id
+        currentIndex = min(max(0, item.lastTokenIndex), toks.count - 1)
+        band = SpeedBand(wpm: item.lastWpm)
+        isLeftHanded = (item.readingHand == "left")
+        state = .ready
+        // Touch updated_at so the resumed read floats to the top of recents.
+        saveProgress()
+    }
+
+    /// Dismiss the resume/library screen to read something new — drops to the paste
+    /// surface (and its clipboard pickup), leaving stored reads untouched on disk.
+    func dismissResume() {
+        pendingResume = nil
+        state = .idle
+    }
+
+    /// Forget a read entirely from the library. If it was the resume candidate,
+    /// the next-most-recent takes its place (or the paste screen, if none remain).
+    func deleteRead(_ item: ReadItem) {
+        try? store?.deleteReadItem(id: item.id)
+        refreshRecents()
+        if pendingResume?.id == item.id { offerResumeOrIdle() }
     }
 
     // MARK: Playback loop
@@ -558,6 +699,9 @@ final class ReaderViewModel {
     private func advance() {
         if currentIndex < tokens.count - 1 {
             currentIndex += 1
+            // Periodic checkpoint (~every 50 words ≈ 5–8s while cruising) so a crash
+            // or force-quit mid-read never loses more than a few seconds of position.
+            if currentIndex % 50 == 0 { saveProgress() }
         } else {
             finish()
         }
@@ -567,6 +711,9 @@ final class ReaderViewModel {
         cancelPlayback()
         state = .completed
         haptics.tick(.finish)
+        if let store, let id = currentReadId, !tokens.isEmpty {
+            try? store.markCompleted(id: id, tokenIndex: tokens.count - 1, completedAt: Date())
+        }
     }
 
     private func cancelPlayback() {
