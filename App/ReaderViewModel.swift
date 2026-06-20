@@ -161,12 +161,26 @@ final class ReaderViewModel {
         switch DeepLinkParser.parse(url) {
         case .text(let text):
             pendingLink = nil
-            load(text)
+            loadAndCruise(text, at: .cruise)
         case .url(let link):
             pendingLink = link
         case nil:
             break
         }
+    }
+
+    /// The deep-link "just start reading" path: load text, set the speed, and
+    /// hand straight off to hands-free cruise — no `.ready` pause, no thumb start.
+    /// Text arriving from a Shortcut, the Share Sheet, or the Action Button streams
+    /// on arrival at `band`. Reuses `load` + `enterCruise` so the start logic isn't
+    /// duplicated, and leaves normal manual paste/input (which routes through
+    /// `load` alone, arming `.ready`) untouched. Empty text never reaches here —
+    /// the parser rejects it — but we guard so a non-`.ready` load is a quiet no-op.
+    private func loadAndCruise(_ text: String, at band: SpeedBand) {
+        load(text)
+        guard state == .ready else { return }
+        self.band = band
+        enterCruise()
     }
 
     /// The reader dismissed the fallback card without opening the link — drop it

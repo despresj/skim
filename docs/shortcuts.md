@@ -3,8 +3,9 @@
 Skim accepts text and URLs through its `skim://read` deep link, so any Shortcut
 that opens one of these URLs feeds the reader:
 
-- `skim://read?text=<url-encoded text>` → reader opens **armed in `.ready`**,
-  first word shown, **no autoplay** (you start with your thumb).
+- `skim://read?text=<url-encoded text>` → reader opens directly in **On mode**
+  (hands-free cruise) at **400 wpm** and starts reading immediately — no paste
+  prompt, no thumb start. A single tap pauses.
 - `skim://read?url=<url-encoded url>` → calm **"Link received"** card with
   **Open Link** (article extraction is coming; v1 doesn't RSVP raw URLs).
 
@@ -19,7 +20,8 @@ Rules baked into the app (`DeepLinkParser`):
 ## ⭐ Read in Skim (Share Sheet) — the primary flow
 
 Select text in any app (ChatGPT, Safari, Notes, Mail…), tap **Share**, tap
-**Read in Skim**, and Skim opens with that text armed in the reader.
+**Read in Skim**, and Skim opens straight into On mode at 400 wpm, already
+reading that text hands-free.
 
 **Build it in the Shortcuts app → New Shortcut:**
 
@@ -39,7 +41,7 @@ Select text in any app (ChatGPT, Safari, Notes, Mail…), tap **Share**, tap
 4. **Open URLs** — input: the **Text** from step 3.
 
 That's it. Selecting text anywhere and tapping **Read in Skim** opens Skim in
-`.ready` with the first word shown. Empty selections fail quietly.
+On mode at 400 wpm, already reading. Empty selections fail quietly.
 
 ### Optional: prefer the URL path when a URL is shared
 
@@ -94,13 +96,14 @@ Trigger each via the Share Sheet, a Shortcut, or by pasting the URL into Safari'
 address bar:
 
 - [ ] Select text in ChatGPT/Safari/Notes → Share → **Read in Skim** appears.
-- [ ] Tapping it opens Skim with the text **armed in `.ready`** (first word shown,
-      not moving until held).
+- [ ] Tapping it opens Skim **already reading in On mode at 400 wpm** — no tap to
+      start. A single tap pauses.
 - [ ] `skim://read?text=Hello%20world` on **cold launch** (force-quit first) →
-      armed reader showing "Hello".
-- [ ] Same link while **already running** → swaps in the new text, still `.ready`.
-- [ ] Same link from **background** (not quit) → foregrounds with the text; the
-      clipboard re-read does **not** replace it.
+      opens reading "Hello world" hands-free at 400 wpm.
+- [ ] Same link while **already running** → swaps in the new text and starts
+      reading it in On mode.
+- [ ] Same link from **background** (not quit) → foregrounds and starts reading
+      the text; the clipboard re-read does **not** replace it.
 - [ ] `skim://read?url=https%3A%2F%2Fexample.com` → "Link received" card; **Open
       Link** opens Safari; **Copy Link** copies; **Not now** returns to paste
       screen; the reader is untouched.
