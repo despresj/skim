@@ -265,6 +265,53 @@ expectEqual(SpeedBand(wpm: 650).warmth, 0.5, "midpoint band is half-warm")
 expectEqual(SpeedBand(wpm: 100).warmth, 0.0, "below range clamps to 0")
 expectEqual(SpeedBand(wpm: 2000).warmth, 1.0, "above range clamps to 1")
 
+print("DeepLink")
+do {
+    let d = DeepLinkParser.parse(URL(string: "skim://read?text=Hello%20world")!)
+    expectEqual(d, .text("Hello world"), "text param decodes to readable words")
+}
+do {
+    let d = DeepLinkParser.parse(URL(string: "skim://read?text=a%20%20b")!)
+    expectEqual(d, .text("a  b"), "internal spacing preserved")
+}
+do {
+    let d = DeepLinkParser.parse(URL(string: "skim://read?text=")!)
+    expectEqual(d, nil, "empty text -> nil")
+}
+do {
+    let d = DeepLinkParser.parse(URL(string: "skim://read?text=%20%20%20")!)
+    expectEqual(d, nil, "whitespace-only text -> nil")
+}
+do {
+    let d = DeepLinkParser.parse(URL(string: "skim://read?url=https%3A%2F%2Fexample.com")!)
+    expectEqual(d, .url("https://example.com"), "url param decodes")
+}
+do {
+    let d = DeepLinkParser.parse(URL(string: "skim://read?text=hi&url=https%3A%2F%2Fx.com")!)
+    expectEqual(d, .text("hi"), "text wins when both params present")
+}
+do {
+    let d = DeepLinkParser.parse(URL(string: "http://read?text=hi")!)
+    expectEqual(d, nil, "wrong scheme -> nil")
+}
+do {
+    let d = DeepLinkParser.parse(URL(string: "skim://other?text=hi")!)
+    expectEqual(d, nil, "wrong host -> nil")
+}
+do {
+    let d = DeepLinkParser.parse(URL(string: "skim://read")!)
+    expectEqual(d, nil, "no query items -> nil")
+}
+do {
+    let big = String(repeating: "a", count: 120_000)
+    let d = DeepLinkParser.parse(URL(string: "skim://read?text=" + big)!)
+    if case let .text(s)? = d {
+        expectEqual(s.count, 100_000, "over-cap text truncated to maxTextLength")
+    } else {
+        expect(false, "over-cap text should still parse to .text")
+    }
+}
+
 print("")
 if failures.isEmpty {
     print("All checks passed ✅")
