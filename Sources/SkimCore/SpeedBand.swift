@@ -27,6 +27,14 @@ public struct SpeedBand: Equatable, Sendable {
     /// scary Blast — leaving the upper speeds as something you deliberately ramp into.
     public static let cruise = SpeedBand(wpm: 400)
 
+    /// The speed a freshly *imported* `.txt` file opens at. Deliberately a calm
+    /// 200 — below the slide's `minWPM` floor — so a long document eases in
+    /// gently and the reader ramps up from there rather than being thrown
+    /// straight into Cruise. It's only ever a *starting* cruise speed: the live
+    /// vertical slide still snaps within `allCases`, and pacing math reads
+    /// `rawValue`, so a sub-floor start is honored without breaking the dial.
+    public static let imported = SpeedBand(wpm: 200)
+
     /// Next faster speed, clamped at `maxWPM`.
     public func faster() -> SpeedBand { SpeedBand(wpm: min(Self.maxWPM, wpm + Self.step)) }
 

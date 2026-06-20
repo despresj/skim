@@ -312,6 +312,22 @@ do {
     }
 }
 
+print("ImportedText")
+do {
+    expectEqual(ImportedText.sanitize("  hello world  "), "hello world",
+                "trims surrounding whitespace")
+    expectEqual(ImportedText.sanitize("\n\nLine one.\nLine two.\n"),
+                "Line one.\nLine two.",
+                "keeps interior newlines/punctuation, trims edges")
+    expectEqual(ImportedText.sanitize(""), nil, "empty -> nil")
+    expectEqual(ImportedText.sanitize("   \n\t  "), nil, "whitespace-only -> nil")
+    // Unlike the deep-link parser, file import is uncapped — long docs stay whole.
+    let big = String(repeating: "word ", count: 50_000)
+    expectEqual(ImportedText.sanitize(big)?.count,
+                big.trimmingCharacters(in: .whitespacesAndNewlines).count,
+                "long text is not truncated")
+}
+
 print("")
 if failures.isEmpty {
     print("All checks passed ✅")

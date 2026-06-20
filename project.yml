@@ -37,6 +37,18 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: com.despresj.skim
             CFBundleURLSchemes: [skim]
+        # Make Skim an "Open In" target for plain-text files so a Shortcut can
+        # write text to a .txt and open it here — large bodies of text arrive
+        # intact via the file (no skim:// URL truncation, no pasteboard prompt).
+        # public.plain-text covers the .txt extension; public.text broadens to
+        # any text payload. Handled by ReaderViewModel.handleFileURL via onOpenURL.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Plain Text
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - public.plain-text
+              - public.text
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.despresj.skim

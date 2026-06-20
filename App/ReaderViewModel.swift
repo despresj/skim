@@ -183,6 +183,33 @@ final class ReaderViewModel {
         enterCruise()
     }
 
+    /// Route an inbound *file* URL — a `.txt` opened into Skim from a Shortcut,
+    /// the Action Button, the Share Sheet, or the Files app. This is the path for
+    /// large text: the file carries the whole document (no URL truncation) and we
+    /// read it directly, so the pasteboard is never touched. Reads UTF-8, trims,
+    /// and quietly ignores an empty/unreadable file (no paste screen, no error),
+    /// then loads straight into hands-free cruise at the calm import speed — no
+    /// `.ready` pause, preserving the selected hand and current UI. Like the deep
+    /// link, the file is authoritative over the clipboard, so we bank the change
+    /// count up front to neutralize the cold-launch foreground re-read race.
+    func handleFileURL(_ url: URL) {
+        lastPasteboardChange = UIPasteboard.general.changeCount
+        guard let text = Self.readImportedText(from: url) else { return }
+        pendingLink = nil
+        loadAndCruise(text, at: .imported)
+    }
+
+    /// Read a `.txt` file's contents as sanitized text, or `nil` if it can't be
+    /// read or is empty. Wraps the security-scoped-resource dance for files
+    /// opened in place (a no-op for files iOS already copied into our Inbox), and
+    /// decodes leniently as UTF-8 so a stray byte never rejects the whole file.
+    private static func readImportedText(from url: URL) -> String? {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return ImportedText.sanitize(String(decoding: data, as: UTF8.self))
+    }
+
     /// The reader dismissed the fallback card without opening the link — drop it
     /// and fall back to whatever was showing before (paste screen if idle).
     func dismissLink() {
