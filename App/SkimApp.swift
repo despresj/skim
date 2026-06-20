@@ -17,6 +17,12 @@ struct SkimApp: App {
                         viewModel.load(sample)
                     }
                 }
+                // The single delivery hook for `skim://read` deep links — iOS
+                // routes cold launch, already-running, and foreground-from-URL
+                // all through here.
+                .onOpenURL { url in
+                    viewModel.handleDeepLink(url)
+                }
         }
         // Grab the clipboard on launch and every time the app comes forward,
         // so whatever you just copied is waiting for you the moment you switch in.

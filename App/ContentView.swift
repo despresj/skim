@@ -6,7 +6,9 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if viewModel.state == .idle {
+            if viewModel.pendingLink != nil {
+                LinkFallbackView(viewModel: viewModel)
+            } else if viewModel.state == .idle {
                 PasteView(viewModel: viewModel)
             } else {
                 ReadingView(viewModel: viewModel)

@@ -21,16 +21,27 @@ targets:
     sources:
       - path: App
       - path: Sources/SkimCore
+    # XcodeGen-managed Info.plist (not hand-edited). We need an explicit plist —
+    # not the generated one — because CFBundleURLTypes is an array and can't be
+    # expressed as a scalar INFOPLIST_KEY_*. The four keys below were previously
+    # INFOPLIST_KEY_* settings; they move here so the scheme can join them.
+    info:
+      path: App/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIStatusBarHidden: true
+        # Register skim://read so iOS Shortcuts / deep links route text and URLs
+        # straight into the reader (see DeepLinkParser).
+        CFBundleURLTypes:
+          - CFBundleURLName: com.despresj.skim
+            CFBundleURLSchemes: [skim]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.despresj.skim
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        GENERATE_INFOPLIST_FILE: "YES"
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
         # Personal team, so device signing survives `xcodegen generate`.
         DEVELOPMENT_TEAM: Z26YTV7798
-        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
-        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: "YES"
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_UIStatusBarHidden: "YES"
