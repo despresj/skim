@@ -29,6 +29,18 @@ final class ReaderViewModel {
         didSet { UserDefaults.standard.set(isLeftHanded, forKey: "skim.isLeftHanded") }
     }
 
+    /// True while a finger is dragging the progress scrubber. Playback is held the
+    /// whole time; the view reads this to show the position readout/handle.
+    private(set) var isScrubbing = false
+
+    /// Whether playback was actually running (cruise or held) when the current
+    /// scrub began — so releasing the scrubber resumes only if it was already On.
+    private var scrubWasPlaying = false
+
+    /// The quarter (0…4) the scrub last passed, so the 25/50/75% haptics fire once
+    /// each per sweep instead of buzzing continuously.
+    private var scrubQuarter = -1
+
     private var playbackTask: Task<Void, Never>?
     private let haptics = Haptics()
 
@@ -68,6 +80,15 @@ final class ReaderViewModel {
     }
 
     var hasText: Bool { !tokens.isEmpty }
+
+    /// Number of words in the loaded text — the one clean metric the end-of-read
+    /// review shows.
+    var wordCount: Int { tokens.count }
+
+    /// The whole text reassembled from its tokens (paragraphs preserved) for the
+    /// end-of-read review's scroll view. Clean reading prose — Markdown is already
+    /// stripped at tokenize time.
+    var reviewText: String { ReadingContext.fullText(tokens) }
 
     /// Position of the current band within `bands` (0 = slowest).
     var bandIndex: Int { bands.firstIndex(of: band) ?? 0 }
@@ -161,7 +182,7 @@ final class ReaderViewModel {
         switch DeepLinkParser.parse(url) {
         case .text(let text):
             pendingLink = nil
-            loadAndCruise(text, at: .cruise)
+            loadAndCruise(text, at: .imported)
         case .url(let link):
             pendingLink = link
         case nil:
@@ -188,7 +209,7 @@ final class ReaderViewModel {
     /// large text: the file carries the whole document (no URL truncation) and we
     /// read it directly, so the pasteboard is never touched. Reads UTF-8, trims,
     /// and quietly ignores an empty/unreadable file (no paste screen, no error),
-    /// then loads straight into hands-free cruise at the calm import speed — no
+    /// then loads straight into hands-free cruise at the brisk import speed — no
     /// `.ready` pause, preserving the selected hand and current UI. Like the deep
     /// link, the file is authoritative over the clipboard, so we bank the change
     /// count up front to neutralize the cold-launch foreground re-read race.
@@ -249,6 +270,23 @@ final class ReaderViewModel {
         cancelPlayback()
         currentIndex = 0
         state = tokens.isEmpty ? .idle : .ready
+    }
+
+    /// "Read Again" from the end-of-read review: jump back to the top and start
+    /// streaming hands-free at the brisk import speed — explicit imported text
+    /// earns an immediate On start. The reading hand and UI style are untouched.
+    /// Re-entrant: each tap cancels any running loop first, so repeated taps can't
+    /// stack playback tasks. A no-op with nothing loaded.
+    func readAgain() {
+        guard hasText else { return }
+        cancelPlayback()
+        isScrubbing = false
+        currentIndex = 0
+        band = .imported
+        mode = .cruise
+        state = .cruisePlaying
+        haptics.tick(.start)
+        startPlayback()
     }
 
     /// Drop the loaded text and return to the calm empty state. Backs the reader's
@@ -321,6 +359,63 @@ final class ReaderViewModel {
     /// sleep. A no-op when paused/ready, so a flick there never starts playback.
     private func restartPlaybackIfPlaying() {
         if state == .precisionHeld || state == .cruisePlaying { startPlayback() }
+    }
+
+    // MARK: Scrubbing (drag the progress bar to seek)
+
+    /// A finger touched down on the progress scrubber. Pause immediately and
+    /// remember whether we were actually reading, so release can resume only if so.
+    /// Speed, reading hand, and mode are all left untouched — scrubbing only moves
+    /// the *position*. A no-op with no text, on the idle/completed screens, or if a
+    /// scrub is somehow already in flight.
+    func beginScrub() {
+        guard hasText, !isScrubbing,
+              state == .ready || state == .paused ||
+              state == .precisionHeld || state == .cruisePlaying else { return }
+        scrubWasPlaying = (state == .precisionHeld || state == .cruisePlaying)
+        cancelPlayback()
+        isScrubbing = true
+        state = .paused
+        scrubQuarter = Int(progress * 4)
+        haptics.prepare()
+    }
+
+    /// Map a 0…1 drag position to a token and preview it live. The active word and
+    /// the context paragraph both read off `currentIndex`, so updating it here
+    /// updates the whole preview. A soft tick marks each quarter crossed (bounded
+    /// to three per sweep, so a fast drag never buzzes). Clamped to valid indices,
+    /// so dragging to either extreme is always safe.
+    func scrub(toProgress p: Double) {
+        guard isScrubbing, !tokens.isEmpty else { return }
+        let clamped = min(max(0, p), 1)
+        let target = min(tokens.count - 1, max(0, Int((clamped * Double(tokens.count - 1)).rounded())))
+
+        let quarter = min(3, Int(clamped * 4))
+        if quarter != scrubQuarter {
+            if quarter > 0 { haptics.tick(.scrubTick) }
+            scrubQuarter = quarter
+        }
+
+        guard target != currentIndex else { return }
+        currentIndex = target
+    }
+
+    /// The finger lifted off the scrubber. We've already landed on the selected
+    /// token; resume reading only if it was On before the scrub, otherwise stay at
+    /// rest. The end of the text counts as completed so a scrub-to-the-end finishes
+    /// cleanly into the review screen rather than playing one trailing word.
+    func endScrub() {
+        guard isScrubbing else { return }
+        isScrubbing = false
+        scrubQuarter = -1
+        guard scrubWasPlaying else { return }
+        if currentIndex >= tokens.count - 1 {
+            finish()
+        } else {
+            mode = .cruise
+            state = .cruisePlaying
+            startPlayback()
+        }
     }
 
     // MARK: Cruise (hands-free autoplay)

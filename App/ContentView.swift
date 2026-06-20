@@ -10,6 +10,8 @@ struct ContentView: View {
                 LinkFallbackView(viewModel: viewModel)
             } else if viewModel.state == .idle {
                 PasteView(viewModel: viewModel)
+            } else if viewModel.state == .completed {
+                ReviewView(viewModel: viewModel)
             } else {
                 ReadingView(viewModel: viewModel)
             }

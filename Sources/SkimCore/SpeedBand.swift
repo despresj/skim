@@ -27,13 +27,16 @@ public struct SpeedBand: Equatable, Sendable {
     /// scary Blast — leaving the upper speeds as something you deliberately ramp into.
     public static let cruise = SpeedBand(wpm: 400)
 
-    /// The speed a freshly *imported* `.txt` file opens at. Deliberately a calm
-    /// 200 — below the slide's `minWPM` floor — so a long document eases in
-    /// gently and the reader ramps up from there rather than being thrown
-    /// straight into Cruise. It's only ever a *starting* cruise speed: the live
-    /// vertical slide still snaps within `allCases`, and pacing math reads
-    /// `rawValue`, so a sub-floor start is honored without breaking the dial.
-    public static let imported = SpeedBand(wpm: 200)
+    /// The speed every explicit "read this now" *import* opens at — an opened
+    /// `.txt` (Shortcut / Action Button / Files), a Share Sheet hand-off, a
+    /// `skim://read?text=…` deep link, and future extracted article text. Set to
+    /// a brisk 400 to match Joe's real cruising speed: starting slower makes the
+    /// tool feel like it's wasting his time, and he can always thumb down. Equal
+    /// to `cruise` by design so the import surface and a cold start agree; kept
+    /// as its own name so the import default can diverge later without touching
+    /// `cruise`. Only ever a *starting* speed — the live vertical slide still
+    /// snaps within `allCases`.
+    public static let imported = SpeedBand(wpm: 400)
 
     /// Next faster speed, clamped at `maxWPM`.
     public func faster() -> SpeedBand { SpeedBand(wpm: min(Self.maxWPM, wpm + Self.step)) }

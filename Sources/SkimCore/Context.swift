@@ -37,4 +37,24 @@ public enum ReadingContext {
         let post = index < hi ? tokens[(index + 1)...hi].map(\.text).joined(separator: " ") : ""
         return Window(before: pre, current: tokens[index].text, after: post)
     }
+
+    /// Reassemble the whole text from its tokens for the end-of-read review: words
+    /// space-joined, with a blank line wherever the paragraph index advances so the
+    /// original paragraph breaks read back as paragraphs. Markdown noise is already
+    /// gone (the tokenizer stripped it), so this is clean reading prose, not the raw
+    /// source. Empty token list → empty string.
+    public static func fullText(_ tokens: [ReadingToken]) -> String {
+        guard let first = tokens.first else { return "" }
+        var result = first.text
+        var lastParagraph = first.paragraphIndex
+        for token in tokens.dropFirst() {
+            if token.paragraphIndex != lastParagraph {
+                result += "\n\n" + token.text
+                lastParagraph = token.paragraphIndex
+            } else {
+                result += " " + token.text
+            }
+        }
+        return result
+    }
 }

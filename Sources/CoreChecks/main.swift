@@ -259,6 +259,8 @@ expectEqual(SpeedBand(wpm: 300).label, "Calm", "low end reads as Calm")
 expectEqual(SpeedBand(wpm: 1000).label, "Blast", "top end reads as Blast")
 expectEqual(SpeedBand.cruise.wpm, 400, "default cruise opens at a calm 400 wpm")
 expectEqual(SpeedBand.cruise.label, "Cruise", "default opens in the Cruise band, never Blast")
+expectEqual(SpeedBand.imported.wpm, 400, "explicit imports open at a brisk 400 wpm, not a slow 200")
+expectEqual(SpeedBand.imported.wpm, SpeedBand.cruise.wpm, "import default agrees with a cold-start cruise")
 expectEqual(SpeedBand(wpm: 300).warmth, 0.0, "slowest band is coolest (warmth 0)")
 expectEqual(SpeedBand(wpm: 1000).warmth, 1.0, "fastest band is warmest (warmth 1)")
 expectEqual(SpeedBand(wpm: 650).warmth, 0.5, "midpoint band is half-warm")
@@ -327,6 +329,50 @@ do {
                 big.trimmingCharacters(in: .whitespacesAndNewlines).count,
                 "long text is not truncated")
 }
+
+print("ORP")
+// Pivot index: deterministic, leans left and settles around the first third.
+expectEqual(ORP.pivotIndex(for: "a"), 0, "single letter pivots on itself")
+expectEqual(ORP.pivotIndex(for: "to"), 1, "2-letter word pivots on the 2nd")
+expectEqual(ORP.pivotIndex(for: "cat"), 1, "short word pivots just left of center")
+expectEqual(ORP.pivotIndex(for: "reading"), 2, "7-letter word pivots on the 3rd (first third)")
+expectEqual(ORP.pivotIndex(for: "wonderful"), 2, "9-letter word still pivots on the 3rd")
+expectEqual(ORP.pivotIndex(for: "incredible"), 3, "10-letter word pivots on the 4th")
+expectEqual(ORP.pivotIndex(for: "extraordinary"), 3, "13-letter word pivots on the 4th")
+expectEqual(ORP.pivotIndex(for: "internationalization"), 4, "very long word caps at the 5th")
+// Punctuation must not shove the recognition point around.
+expectEqual(ORP.pivotIndex(for: "cat,"), 1, "trailing comma doesn't move the pivot")
+expectEqual(ORP.pivotIndex(for: "\"hello"), 2, "leading quote is skipped before counting")
+expectEqual(ORP.pivotIndex(for: "12.5%"), 1, "numbers pivot deterministically too")
+do {
+    let p = ORP.split("reading")
+    expectEqual(p.before, "re", "split: lead-in before the pivot")
+    expectEqual(p.pivot, "a", "split: the locked pivot letter")
+    expectEqual(p.after, "ding", "split: the tail after the pivot")
+}
+do {
+    let p = ORP.split("a")
+    expectEqual(p.before, "", "single letter: nothing before")
+    expectEqual(p.pivot, "a", "single letter: it is the pivot")
+    expectEqual(p.after, "", "single letter: nothing after")
+}
+do {
+    let p = ORP.split("")
+    expectEqual(p, ORP.Pivot(before: "", pivot: "", after: ""), "empty word splits to empties")
+}
+
+print("ReadingContext.fullText")
+do {
+    let tokens = Tokenizer.tokenize("Hello world. New sentence.")
+    expectEqual(ReadingContext.fullText(tokens), "Hello world. New sentence.",
+                "single paragraph joins with spaces")
+}
+do {
+    let tokens = Tokenizer.tokenize("First para here.\n\nSecond para there.")
+    expectEqual(ReadingContext.fullText(tokens), "First para here.\n\nSecond para there.",
+                "paragraph breaks come back as blank lines")
+}
+expectEqual(ReadingContext.fullText([]), "", "no tokens -> empty string")
 
 print("")
 if failures.isEmpty {

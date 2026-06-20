@@ -28,9 +28,11 @@ struct ReadingView: View {
     /// Horizontal travel (points) that turns a sideways move into a flick.
     private let flickThreshold: CGFloat = 44
 
-    /// Leading inset of the pivot from the screen edge. Small, so the focal point
-    /// sits in the top corner with room for the single-letter lead-in beside it.
-    private let pivotAnchorX: CGFloat = 40
+    /// X-position of the locked pivot center, measured from the leading edge. Set
+    /// so the focal column sits in the left third — room for the short lead-in to
+    /// its left and the long tail to flow right — for either reading hand. Even on
+    /// the narrowest iPhone this stays left of center.
+    private let pivotAnchorX: CGFloat = 110
 
     // Live gesture state for the axis-locked joystick.
     @State private var gestureActive = false
@@ -73,6 +75,10 @@ struct ReadingView: View {
                 editControl
 
                 newTextChip
+
+                // Front-most so its drag strip wins over the thumb rail where they
+                // overlap at the foot of the screen.
+                scrubberLayer
             }
             // One source of truth for the warmth crossfade: when the band changes,
             // every speed-driven color (glow, rail, dial, pivot, progress) eases
@@ -90,29 +96,18 @@ struct ReadingView: View {
 
     // MARK: Word (rides high, anchored on the reading-hand side)
 
-    @ViewBuilder
     private func topContent(height: CGFloat) -> some View {
-        if viewModel.state == .completed {
-            // The end-of-text state stays centered; only the streaming word
-            // rides high on the screen.
-            CompletionView(viewModel: viewModel)
-        } else {
-            VStack(spacing: 0) {
-                PivotWord(word: viewModel.currentToken?.text ?? "",
-                          anchorX: pivotAnchorX,
-                          leftHanded: leftHanded,
-                          warmth: viewModel.speedWarmth)
-                    // Hold the baseline steady; no per-word animation/jitter.
-                    .animation(nil, value: viewModel.currentIndex)
-                    // Pulled inward off the reading-hand edge so the word sits in a
-                    // settled focal column rather than parked against the side.
-                    .padding(leftHanded ? .trailing : .leading, 34)
-                    // Drop into a deliberate upper focal zone — clearly off the
-                    // status bar / Dynamic Island, so the hero word reads as placed,
-                    // not stranded in the corner, and holds a repeatable spot.
-                    .padding(.top, height * 0.25)
-                Spacer(minLength: 0)
-            }
+        VStack(spacing: 0) {
+            PivotWord(word: viewModel.currentToken?.text ?? "",
+                      anchorX: pivotAnchorX,
+                      warmth: viewModel.speedWarmth)
+                // Hold the baseline steady; no per-word animation/jitter.
+                .animation(nil, value: viewModel.currentIndex)
+                // Drop into a deliberate upper focal zone — clearly off the
+                // status bar / Dynamic Island, so the hero word reads as placed,
+                // not stranded in the corner, and holds a repeatable spot.
+                .padding(.top, height * 0.25)
+            Spacer(minLength: 0)
         }
     }
 
@@ -147,6 +142,26 @@ struct ReadingView: View {
                 .padding(.bottom, 26)
         }
         .animation(.easeOut(duration: 0.25), value: showsContext)
+    }
+
+    // MARK: Scrubber (drag the progress line to seek)
+
+    /// The interactive layer riding directly over the visible `ProgressLine`: a
+    /// transparent drag strip with a thumb handle and, while scrubbing, a quiet
+    /// position readout. The fill itself is still drawn by `ProgressLine` beneath
+    /// (it tracks `progress`, which the scrub updates live), so this layer only
+    /// adds the grip. Pinned to the foot, inset to match the line, and only live
+    /// during an active session.
+    private var scrubberLayer: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            ProgressScrubber(viewModel: viewModel)
+                .padding(.horizontal, 28)
+                // Center the 40pt touch strip on the line sitting at bottom 26.
+                .padding(.bottom, 7.5)
+        }
+        .opacity(showsContext ? 1 : 0)
+        .allowsHitTesting(showsContext)
     }
 
     // MARK: Canvas hit-test gate (keeps the bare surface tappable)
@@ -537,55 +552,60 @@ private struct ContextStrip: View {
     }
 }
 
-/// One RSVP word, anchored on its pivot. The pivot — the second letter — is
-/// painted blue and pinned to a fixed x, so your eye holds one spot while the
-/// rest of the word flows around it. This is the "optimal recognition point"
-/// that makes rapid serial reading feel still. Mirrors to the opposite corner
-/// for a left-handed grip while letters still read left to right.
+/// A custom horizontal alignment that marks the pivot letter's optical center, so
+/// a parent frame can pin that exact point — not the word's center — to a fixed x.
+private extension HorizontalAlignment {
+    enum PivotCenterID: AlignmentID {
+        static func defaultValue(in d: ViewDimensions) -> CGFloat { d.width / 2 }
+    }
+    static let pivotCenter = HorizontalAlignment(PivotCenterID.self)
+}
+
+/// One RSVP word laid out around its Optimal Recognition Point. The pivot letter
+/// (`ORP.split`) is painted in the amber accent and its *center* is locked to a
+/// fixed x, so the eye holds one unmoving spot while `before`/`after` flow out to
+/// the sides. The lock is geometric, not measured: a custom alignment guide marks
+/// the pivot's center and a fixed-width frame pins it — so word length, glyph
+/// width, punctuation, and numbers can never shift the anchor or jitter it.
+///
+/// The pivot sits in the left focal column for *both* hands. ORP puts the pivot in
+/// a word's first third, so the longer `after` tail always trails to the right —
+/// only a left anchor leaves it on-screen room. The word rides high, clear of the
+/// mid-height speed dial, so it never fights the thumb whichever hand reads.
 private struct PivotWord: View {
     let word: String
+    /// Distance of the locked pivot center from the leading screen edge.
     let anchorX: CGFloat
-    let leftHanded: Bool
     /// Speed warmth (0…1): the focal ORP letter heats from calm gold toward a
     /// golden amber as pace climbs — soft when slow, more energized when fast.
     var warmth: Double = 0
 
-    private let font = Font.system(size: 50, weight: .semibold, design: .rounded)
+    // Large, rounded, and solidly weighted for a crisp, high-contrast focal word
+    // that never thins out or shimmers. Generously legible without going cartoonish.
+    private let font = Font.system(size: 52, weight: .semibold, design: .rounded)
 
     var body: some View {
-        let chars = Array(word)
-        // Pivot on the second letter (index 1); single-character words pivot on
-        // their only letter.
-        let pivotIdx = chars.count > 1 ? 1 : 0
-        let before = chars.isEmpty ? "" : String(chars[0..<pivotIdx])
-        let pivot  = chars.isEmpty ? "" : String(chars[pivotIdx])
-        let after  = chars.count > pivotIdx + 1 ? String(chars[(pivotIdx + 1)...]) : ""
+        let parts = ORP.split(word)
 
         HStack(spacing: 0) {
-            if leftHanded {
-                Spacer(minLength: 0)
-                Text(before).foregroundStyle(Color.readingForeground)
-                Text(pivot).foregroundStyle(Color.readingPivot(warmth: warmth))
-                // Trailing box pins the pivot's right edge to a fixed x from the
-                // right; the rest of the word reads on to the left of it.
-                Text(after)
-                    .foregroundStyle(Color.readingForeground)
-                    .frame(width: anchorX, alignment: .leading)
-            } else {
-                // The lead-in fills a fixed box ending at the anchor, so the
-                // pivot's left edge always lands on the same x no matter the word.
-                Text(before)
-                    .foregroundStyle(Color.readingForeground)
-                    .frame(width: anchorX, alignment: .trailing)
-                Text(pivot).foregroundStyle(Color.readingPivot(warmth: warmth))
-                Text(after).foregroundStyle(Color.readingForeground)
-                Spacer(minLength: 0)
-            }
+            Text(parts.before).foregroundStyle(Color.readingForeground)
+            Text(parts.pivot)
+                .foregroundStyle(Color.readingPivot(warmth: warmth))
+                // The pivot's own center is the alignment point everything pins to.
+                .alignmentGuide(.pivotCenter) { $0[HorizontalAlignment.center] }
+            Text(parts.after).foregroundStyle(Color.readingForeground)
         }
         .font(font)
         .tracking(0.5)
         .lineLimit(1)
-        .minimumScaleFactor(0.5)
+        // Natural width (no scaling): a long word extends past the anchor rather
+        // than shrinking, so the pivot never moves between tokens.
+        .fixedSize()
+        // A column exactly `2·anchorX` wide centers the pivot at `anchorX`; the
+        // word overflows symmetrically without nudging that locked point.
+        .frame(width: anchorX * 2,
+               alignment: Alignment(horizontal: .pivotCenter, vertical: .center))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -880,31 +900,81 @@ private struct ProgressLine: View {
     }
 }
 
-/// Shown at the end of the text.
-private struct CompletionView: View {
+/// The drag grip layered over `ProgressLine`. A transparent full-width strip maps
+/// horizontal touches to a token (`scrub(toProgress:)`), with a thumb handle that
+/// brightens and grows while dragging and a centered "412 / 1,920 · 21%" readout
+/// floating above the line. Reading pauses on touch-down and resumes on release
+/// only if it was already On — all handled in the view model; this view is just
+/// the gesture and its feedback. A tap is a zero-length drag, so it seeks too.
+private struct ProgressScrubber: View {
     let viewModel: ReaderViewModel
+    @State private var dragging = false
 
     var body: some View {
-        VStack(spacing: 26) {
-            Text("Done")
-                .font(.system(size: 40, weight: .semibold, design: .rounded))
-                .foregroundStyle(Color.readingForeground)
-            VStack(spacing: 12) {
-                Button {
-                    viewModel.restart()
-                } label: {
-                    Label("Read again", systemImage: "arrow.counterclockwise")
-                }
-                .buttonStyle(SecondaryPillStyle())
+        GeometryReader { geo in
+            let w = geo.size.width
+            let p = max(0, min(1, viewModel.progress))
+            let cx = CGFloat(p) * w
 
-                Button {
-                    viewModel.clearText()
-                } label: {
-                    Label("New text", systemImage: "doc.on.clipboard")
+            ZStack {
+                // Full strip is the hit area, even where the line is transparent.
+                Color.clear.contentShape(Rectangle())
+
+                Circle()
+                    .fill(Color.readingAccent(warmth: viewModel.speedWarmth))
+                    .frame(width: dragging ? 17 : 11, height: dragging ? 17 : 11)
+                    .overlay(Circle().stroke(Color.readingBackground.opacity(0.55), lineWidth: 1.5))
+                    .shadow(color: .black.opacity(0.3), radius: dragging ? 6 : 3, y: 1)
+                    .opacity(dragging ? 1 : 0.5)
+                    .position(x: cx, y: geo.size.height / 2)
+                    .animation(.easeOut(duration: 0.16), value: dragging)
+
+                if dragging {
+                    ScrubReadout(index: viewModel.currentIndex,
+                                 total: viewModel.wordCount,
+                                 progress: p)
+                        // Floats above the line; not clipped by the strip bounds.
+                        .position(x: w / 2, y: -14)
+                        .transition(.opacity)
                 }
-                .buttonStyle(SecondaryPillStyle())
             }
-            .fixedSize(horizontal: true, vertical: false)
+            .frame(width: w, height: geo.size.height)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if !dragging {
+                            viewModel.beginScrub()
+                            dragging = true
+                        }
+                        viewModel.scrub(toProgress: Double(value.location.x / w))
+                    }
+                    .onEnded { _ in
+                        viewModel.endScrub()
+                        dragging = false
+                    }
+            )
         }
+        .frame(height: 40)
+    }
+}
+
+/// The transient scrub position readout — token position and percent — in the
+/// same calm translucent pill as the flick flash, so it reads as the same quiet
+/// family. Subtle and non-modal; only ever up while a finger is on the scrubber.
+private struct ScrubReadout: View {
+    let index: Int
+    let total: Int
+    let progress: Double
+
+    var body: some View {
+        Text("\(index + 1) / \(total.formatted())  ·  \(Int((progress * 100).rounded()))%")
+            .font(.system(size: 14, weight: .semibold, design: .rounded))
+            .foregroundStyle(Color.readingForeground)
+            .monospacedDigit()
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(Color.readingSurface.opacity(0.92), in: Capsule())
+            .overlay(Capsule().stroke(Color.readingBorder, lineWidth: 1))
+            .fixedSize()
     }
 }
