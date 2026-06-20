@@ -5,6 +5,10 @@ import SwiftUI
 /// steer like a joystick — slide up/down for speed, flick ←/→ to replay/skip.
 struct ReadingView: View {
     let viewModel: ReaderViewModel
+    let ideas: IdeasViewModel
+
+    /// Whether the Ideas scratchpad sheet is up.
+    @State private var showingIdeas = false
 
     /// Honor Reduce Motion: warmth still *changes* color with speed, but the
     /// crossfade is dropped so nothing animates or pulses. Color never carries the
@@ -74,6 +78,8 @@ struct ReadingView: View {
 
                 editControl
 
+                ideasButton
+
                 newTextChip
 
                 // Front-most so its drag strip wins over the thumb rail where they
@@ -91,7 +97,57 @@ struct ReadingView: View {
             // and runs *simultaneously* with the rail's hold/steer drag, so a
             // double-tap anywhere flips cruise without disarming the joystick.
             .simultaneousGesture(cruiseToggleGesture)
+            // The Ideas scratchpad. Opening pauses cruise; closing resumes it only
+            // if it was On — the reading position is never lost either way.
+            .sheet(isPresented: $showingIdeas, onDismiss: { viewModel.overlayDismissed() }) {
+                IdeasView(ideas: ideas, capture: { viewModel.ideaCapture })
+            }
         }
+    }
+
+    // MARK: Ideas button (persistent, secondary)
+
+    /// A small, quiet lightbulb pinned to the bottom corner on the *non*-reading
+    /// hand side — opposite the thumb rail and speed gauge, lifted clear of the
+    /// scrubber, away from the centered back chevron and the reading-hand new-text
+    /// chip. Reachable but secondary: a one-tap scratchpad for capturing friction
+    /// without leaving the read. Present at rest and while cruising; it steps off
+    /// the sacred surface the moment a thumb hold begins.
+    private var ideasButton: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            HStack(spacing: 0) {
+                if leftHanded { Spacer(minLength: 0) }
+                Button { openIdeas() } label: {
+                    Image(systemName: "lightbulb")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(Color.readingMuted)
+                        .frame(width: 40, height: 40)
+                        .background(Color.readingSurface.opacity(0.6), in: Circle())
+                        .overlay(Circle().stroke(Color.readingBorder, lineWidth: 1))
+                }
+                .padding(leftHanded ? .trailing : .leading, 18)
+                if !leftHanded { Spacer(minLength: 0) }
+            }
+            // Lift clear of the bottom scrubber/progress line + home indicator.
+            .padding(.bottom, 64)
+        }
+        .opacity(ideasVisible ? 1 : 0)
+        .allowsHitTesting(ideasVisible)
+        .animation(.easeOut(duration: 0.22), value: ideasVisible)
+    }
+
+    /// Persistent across the reader's resting and cruising states, but never during
+    /// an active thumb hold or on the completion screen — the surface stays sacred
+    /// while words actually stream under the thumb.
+    private var ideasVisible: Bool {
+        viewModel.state == .ready || viewModel.state == .paused ||
+        viewModel.state == .cruisePlaying
+    }
+
+    private func openIdeas() {
+        viewModel.overlayPresented()
+        showingIdeas = true
     }
 
     // MARK: Word (rides high, anchored on the reading-hand side)

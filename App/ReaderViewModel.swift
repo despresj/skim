@@ -44,6 +44,23 @@ final class ReaderViewModel {
     private var playbackTask: Task<Void, Never>?
     private let haptics = Haptics()
 
+    /// The local persistence store, shared with the Ideas panel. `nil` only if it
+    /// failed to open — every store call is optional so reading never depends on it.
+    let store: SkimStore?
+
+    /// The `read_items.id` of the record backing the current session, set when a
+    /// read is recorded on load. Lets a jotted idea point back at this read, and
+    /// drives position autosave. `nil` with nothing loaded.
+    private(set) var currentReadId: String?
+
+    /// Whether cruise should resume when a covering overlay (the Ideas panel) is
+    /// dismissed — true only if we were actively cruising when it opened.
+    private var resumeCruiseAfterOverlay = false
+
+    init(store: SkimStore? = nil) {
+        self.store = store
+    }
+
     /// The text currently loaded into the reader, so re-grabbing the clipboard
     /// on every foreground only reloads when the copied text actually changed —
     /// a brief switch away and back never resets your place.
@@ -89,6 +106,21 @@ final class ReaderViewModel {
     /// end-of-read review's scroll view. Clean reading prose — Markdown is already
     /// stripped at tokenize time.
     var reviewText: String { ReadingContext.fullText(tokens) }
+
+    /// Reader context for an idea jotted right now: which read, the position, the
+    /// speed, and a short phrase around the active word. Empty when nothing's
+    /// loaded. Lets "word jitters here" be tied back to the exact spot later.
+    var ideaCapture: IdeaCapture {
+        guard hasText else { return IdeaCapture() }
+        let w = ReadingContext.window(tokens: tokens, index: currentIndex, before: 4, after: 4)
+        let snippet = [w.before, w.current, w.after]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return IdeaCapture(readId: currentReadId,
+                           tokenIndex: currentIndex,
+                           wpm: wpm,
+                           snippet: snippet.isEmpty ? nil : snippet)
+    }
 
     /// Position of the current band within `bands` (0 = slowest).
     var bandIndex: Int { bands.firstIndex(of: band) ?? 0 }
@@ -416,6 +448,30 @@ final class ReaderViewModel {
             state = .cruisePlaying
             startPlayback()
         }
+    }
+
+    // MARK: Overlay pause/resume (Ideas panel)
+
+    /// A covering panel (Ideas) is opening over the reader. If we were cruising,
+    /// pause — reading shouldn't advance behind a sheet — and remember to resume on
+    /// dismiss. A held thumb has already lifted to tap, so only cruise needs this.
+    /// Silent (no pause haptic): opening a scratchpad isn't a reading gesture.
+    func overlayPresented() {
+        resumeCruiseAfterOverlay = (state == .cruisePlaying)
+        if state == .cruisePlaying {
+            cancelPlayback()
+            mode = .precisionHeld
+            state = .paused
+        }
+    }
+
+    /// The panel closed. Resume hands-free reading only if it was On when the panel
+    /// opened; otherwise stay at rest exactly where it was — opening Ideas never
+    /// loses your place or starts playback on its own.
+    func overlayDismissed() {
+        let shouldResume = resumeCruiseAfterOverlay
+        resumeCruiseAfterOverlay = false
+        if shouldResume { enterCruise() }
     }
 
     // MARK: Cruise (hands-free autoplay)

@@ -374,6 +374,82 @@ do {
 }
 expectEqual(ReadingContext.fullText([]), "", "no tokens -> empty string")
 
+print("TextHash")
+expectEqual(TextHash.of("hello"), TextHash.of("hello"), "same text -> same hash (stable across calls)")
+expect(TextHash.of("hello") != TextHash.of("Hello"), "different text -> different hash")
+expectEqual(TextHash.of(""), TextHash.of(""), "empty hashes deterministically")
+
+print("ReadItem.deriveTitle")
+expectEqual(ReadItem.deriveTitle(from: "one two three"), "one two three", "short body is its own title")
+expectEqual(ReadItem.deriveTitle(from: "  a  b   c  ", maxWords: 2), "a b…", "caps at maxWords with ellipsis, collapses spaces")
+expectEqual(ReadItem.deriveTitle(from: "   \n  "), "Untitled", "blank body -> Untitled")
+
+print("SkimStore — ideas")
+do {
+    let store = try SkimStore(path: ":memory:")
+    let t0 = Date(timeIntervalSince1970: 1_000)
+    let t1 = Date(timeIntervalSince1970: 2_000)
+    try store.insertIdea(ImprovementIdea(id: "i1", text: "Scrubber thumb too small",
+                                         createdAt: t0, updatedAt: t0))
+    try store.insertIdea(ImprovementIdea(id: "i2", text: "Word jitters on long words",
+                                         sourceReadId: "r1", tokenIndex: 42, wpm: 650,
+                                         contextSnippet: "…the long word here…",
+                                         createdAt: t1, updatedAt: t1))
+    let open = try store.ideas(status: .open)
+    expectEqual(open.map(\.id), ["i2", "i1"], "open ideas come back newest-first")
+    expectEqual(open.first?.tokenIndex, 42, "captured token index round-trips")
+    expectEqual(open.first?.wpm, 650, "captured wpm round-trips")
+    expectEqual(open.first?.contextSnippet, "…the long word here…", "context snippet round-trips")
+    expectEqual(open.last?.sourceReadId, nil, "absent source read id stays nil")
+
+    try store.updateIdeaStatus(id: "i1", status: .done, updatedAt: t1)
+    expectEqual(try store.ideas(status: .open).map(\.id), ["i2"], "marking done removes it from the open list")
+    expectEqual(try store.ideas(status: .done).map(\.id), ["i1"], "done idea is findable under done")
+    expectEqual(try store.ideas(status: nil).count, 2, "nil status returns every idea")
+
+    try store.deleteIdea(id: "i2")
+    expectEqual(try store.ideas(status: .open).count, 0, "delete removes the idea")
+} catch {
+    expect(false, "ideas store threw: \(error)")
+}
+
+print("SkimStore — read items")
+do {
+    let store = try SkimStore(path: ":memory:")
+    let t0 = Date(timeIntervalSince1970: 10_000)
+    let t1 = Date(timeIntervalSince1970: 20_000)
+    let t2 = Date(timeIntervalSince1970: 30_000)
+    try store.upsertReadItem(ReadItem(id: "r1", title: "First read", body: "alpha beta gamma",
+                                      source: .manual, wordCount: 3, createdAt: t0, updatedAt: t0))
+    try store.upsertReadItem(ReadItem(id: "r2", title: "Second read", body: "delta epsilon",
+                                      source: .file, sourcePath: "/tmp/x.txt", wordCount: 2,
+                                      createdAt: t1, updatedAt: t1))
+
+    expectEqual(try store.recentReads(limit: 10).map(\.id), ["r2", "r1"], "recents are newest-updated first")
+    expectEqual(try store.mostRecentActive()?.id, "r2", "most-recent-active is the latest active read")
+    expectEqual(try store.readItem(id: "r1")?.body, "alpha beta gamma", "body round-trips intact")
+    expectEqual(try store.readItem(id: "r2")?.source, ReadSource.file, "source enum round-trips")
+
+    // Advancing r1's position bumps updated_at, so it floats to the top of recents.
+    try store.updatePosition(id: "r1", tokenIndex: 2, wpm: 500, readingHand: "left", updatedAt: t2)
+    let r1 = try store.readItem(id: "r1")
+    expectEqual(r1?.lastTokenIndex, 2, "position update persists token index")
+    expectEqual(r1?.lastWpm, 500, "position update persists wpm")
+    expectEqual(r1?.readingHand, "left", "position update persists reading hand")
+    expectEqual(try store.recentReads(limit: 10).map(\.id), ["r1", "r2"], "a position update refloats the read")
+
+    try store.markCompleted(id: "r2", tokenIndex: 1, completedAt: t2)
+    let r2 = try store.readItem(id: "r2")
+    expectEqual(r2?.status, ReadStatus.completed, "finishing sets status completed")
+    expect(r2?.completedAt != nil, "finishing stamps completed_at")
+    expectEqual(try store.mostRecentActive()?.id, "r1", "a completed read drops out of resume candidates")
+
+    try store.deleteReadItem(id: "r1")
+    expectEqual(try store.recentReads(limit: 10).map(\.id), ["r2"], "delete removes the read from recents")
+} catch {
+    expect(false, "read-items store threw: \(error)")
+}
+
 print("")
 if failures.isEmpty {
     print("All checks passed ✅")

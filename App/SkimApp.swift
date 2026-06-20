@@ -2,12 +2,22 @@ import SwiftUI
 
 @main
 struct SkimApp: App {
-    @State private var viewModel = ReaderViewModel()
+    @State private var viewModel: ReaderViewModel
+    @State private var ideas: IdeasViewModel
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        // One local SQLite store, shared by the reader (read records, resume) and
+        // the Ideas scratchpad. Opened once at launch; `nil` if it fails, in which
+        // case both just run without persistence.
+        let store = AppStore.open()
+        _viewModel = State(initialValue: ReaderViewModel(store: store))
+        _ideas = State(initialValue: IdeasViewModel(store: store))
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(viewModel: viewModel)
+            ContentView(viewModel: viewModel, ideas: ideas)
                 // Dev shortcut: `SKIM_SAMPLE` (set in the Xcode scheme or the
                 // launch env) preloads sample prose instead of the clipboard, so
                 // the reading surface can be opened without a copy step.

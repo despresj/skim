@@ -3,6 +3,7 @@ import SwiftUI
 /// Routes between the paste screen (no text) and the reading surface.
 struct ContentView: View {
     let viewModel: ReaderViewModel
+    let ideas: IdeasViewModel
 
     var body: some View {
         Group {
@@ -13,7 +14,7 @@ struct ContentView: View {
             } else if viewModel.state == .completed {
                 ReviewView(viewModel: viewModel)
             } else {
-                ReadingView(viewModel: viewModel)
+                ReadingView(viewModel: viewModel, ideas: ideas)
             }
         }
         // Keep the reading screen lit while engaged with the thumb.
