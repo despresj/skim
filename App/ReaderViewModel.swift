@@ -50,6 +50,12 @@ final class ReaderViewModel {
     /// ever read once you opt in by tapping the chip.
     private(set) var hasPendingClipboard = false
 
+    /// A URL delivered by a `skim://read?url=…` deep link, awaiting the user's
+    /// choice on the fallback card. v1 doesn't extract article text, so the URL
+    /// is parked here (the reader is left untouched) and `ContentView` shows
+    /// `LinkFallbackView` while it's set. `nil` when no link is pending.
+    private(set) var pendingLink: String?
+
     // MARK: Derived state
 
     var currentToken: ReadingToken? {
@@ -141,6 +147,41 @@ final class ReaderViewModel {
     func pasteFromClipboard() {
         lastPasteboardChange = UIPasteboard.general.changeCount
         readPasteboard()
+    }
+
+    /// Route an inbound `skim://read` deep link. Text loads straight into the
+    /// reader (armed in `.ready`, no autoplay); a URL is parked on the fallback
+    /// card. Invalid/empty links are ignored so they never disturb a current
+    /// read or crash. The link is authoritative over the clipboard: we bank the
+    /// current pasteboard change count up front so the foreground re-read can't
+    /// clobber the link or trigger iOS's paste prompt (resolves the cold-launch
+    /// race between `onOpenURL` and `scenePhase == .active`, in either order).
+    func handleDeepLink(_ url: URL) {
+        lastPasteboardChange = UIPasteboard.general.changeCount
+        switch DeepLinkParser.parse(url) {
+        case .text(let text):
+            pendingLink = nil
+            load(text)
+        case .url(let link):
+            pendingLink = link
+        case nil:
+            break
+        }
+    }
+
+    /// The reader dismissed the fallback card without opening the link — drop it
+    /// and fall back to whatever was showing before (paste screen if idle).
+    func dismissLink() {
+        pendingLink = nil
+    }
+
+    /// "Copy Link" on the fallback card: put the URL on the pasteboard and
+    /// re-bank the change count so the link we just copied doesn't loop back as
+    /// readable clipboard text on the next foreground.
+    func copyLink() {
+        guard let link = pendingLink else { return }
+        UIPasteboard.general.string = link
+        lastPasteboardChange = UIPasteboard.general.changeCount
     }
 
     private func readPasteboard() {
