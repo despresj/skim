@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The sacred reading surface. Almost nothing on screen: the current word riding
 /// high on its pivot, a tiny progress line, and a thumb rail you hold to read and
@@ -9,6 +10,17 @@ struct ReadingView: View {
 
     /// Whether the Ideas scratchpad sheet is up.
     @State private var showingIdeas = false
+
+    /// Whether the Settings sheet is up.
+    @State private var showingSettings = false
+
+    /// Defaults key for the one-time gesture coaching flag.
+    private static let hintsSeenKey = "skim.hasSeenGestureHints"
+
+    /// First-run gesture coaching. Read once from defaults so it appears on the
+    /// very first reader entry, then is dismissed for good. It teaches, it doesn't
+    /// gate: a deep-link/file import keeps streaming underneath while it's up.
+    @State private var showGestureHints = !UserDefaults.standard.bool(forKey: ReadingView.hintsSeenKey)
 
     /// Honor Reduce Motion: warmth still *changes* color with speed, but the
     /// crossfade is dropped so nothing animates or pulses. Color never carries the
@@ -64,7 +76,7 @@ struct ReadingView: View {
 
                 ReadingWarmth(warmth: viewModel.speedWarmth, leftHanded: leftHanded)
 
-                topContent(height: geo.size.height)
+                topContent(height: geo.size.height, width: geo.size.width)
 
                 bottomContent(height: geo.size.height)
 
@@ -78,6 +90,8 @@ struct ReadingView: View {
 
                 editControl
 
+                settingsButton
+
                 ideasButton
 
                 newTextChip
@@ -85,6 +99,13 @@ struct ReadingView: View {
                 // Front-most so its drag strip wins over the thumb rail where they
                 // overlap at the foot of the screen.
                 scrubberLayer
+
+                // Topmost of all: one-time gesture coaching, above even the
+                // scrubber so its dimmed backdrop covers the whole surface.
+                if showGestureHints {
+                    GestureHintsOverlay(onDismiss: dismissGestureHints)
+                        .transition(.opacity)
+                }
             }
             // One source of truth for the warmth crossfade: when the band changes,
             // every speed-driven color (glow, rail, dial, pivot, progress) eases
@@ -93,31 +114,36 @@ struct ReadingView: View {
             // under Reduce Motion: the colors snap instead.
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.25),
                        value: viewModel.speedWarmth)
-            // Cruise toggle spans the whole surface — including the thumb rail —
-            // and runs *simultaneously* with the rail's hold/steer drag, so a
-            // double-tap anywhere flips cruise without disarming the joystick.
-            .simultaneousGesture(cruiseToggleGesture)
+            // Cruise tap controls span the whole surface — including the thumb
+            // rail — and run *simultaneously* with the rail's hold/steer drag, so
+            // a double-tap (hand off) or single-tap (stop) works anywhere without
+            // disarming the joystick.
+            .simultaneousGesture(cruiseTapGesture)
             // The Ideas scratchpad. Opening pauses cruise; closing resumes it only
             // if it was On — the reading position is never lost either way.
             .sheet(isPresented: $showingIdeas, onDismiss: { viewModel.overlayDismissed() }) {
                 IdeasView(ideas: ideas, capture: { viewModel.ideaCapture })
+            }
+            // Settings pauses cruise on open and resumes it on close if it was On,
+            // same as the Ideas panel — the reading position is never lost.
+            .sheet(isPresented: $showingSettings, onDismiss: { viewModel.overlayDismissed() }) {
+                SettingsView(viewModel: viewModel)
             }
         }
     }
 
     // MARK: Ideas button (persistent, secondary)
 
-    /// A small, quiet lightbulb pinned to the bottom corner on the *non*-reading
-    /// hand side — opposite the thumb rail and speed gauge, lifted clear of the
-    /// scrubber, away from the centered back chevron and the reading-hand new-text
-    /// chip. Reachable but secondary: a one-tap scratchpad for capturing friction
-    /// without leaving the read. Present at rest and while cruising; it steps off
-    /// the sacred surface the moment a thumb hold begins.
+    /// A small, quiet lightbulb pinned to the bottom-right corner, lifted clear of
+    /// the scrubber and away from the centered back chevron. Reachable but
+    /// secondary: a one-tap scratchpad for capturing friction without leaving the
+    /// read. Full at rest, faint while cruising, and gone the moment a thumb hold
+    /// begins — see `ideasOpacity`.
     private var ideasButton: some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
             HStack(spacing: 0) {
-                if leftHanded { Spacer(minLength: 0) }
+                Spacer(minLength: 0)
                 Button { openIdeas() } label: {
                     Image(systemName: "lightbulb")
                         .font(.system(size: 17, weight: .medium))
@@ -126,23 +152,26 @@ struct ReadingView: View {
                         .background(Color.readingSurface.opacity(0.6), in: Circle())
                         .overlay(Circle().stroke(Color.readingBorder, lineWidth: 1))
                 }
-                .padding(leftHanded ? .trailing : .leading, 18)
-                if !leftHanded { Spacer(minLength: 0) }
+                .padding(.trailing, 18)
             }
             // Lift clear of the bottom scrubber/progress line + home indicator.
             .padding(.bottom, 64)
         }
-        .opacity(ideasVisible ? 1 : 0)
-        .allowsHitTesting(ideasVisible)
-        .animation(.easeOut(duration: 0.22), value: ideasVisible)
+        .opacity(ideasOpacity)
+        .allowsHitTesting(ideasOpacity > 0)
+        .animation(.easeOut(duration: 0.22), value: ideasOpacity)
     }
 
-    /// Persistent across the reader's resting and cruising states, but never during
-    /// an active thumb hold or on the completion screen — the surface stays sacred
-    /// while words actually stream under the thumb.
-    private var ideasVisible: Bool {
-        viewModel.state == .ready || viewModel.state == .paused ||
-        viewModel.state == .cruisePlaying
+    /// How present the Ideas lightbulb is. Full at rest (ready/paused) where it's a
+    /// one-tap capture; faint while words actually stream under hands-free cruise —
+    /// reachable, but stepped back so the focal word stays sacred — and gone during
+    /// an active thumb hold or on the completion screen.
+    private var ideasOpacity: Double {
+        switch viewModel.state {
+        case .ready, .paused:   return 1
+        case .cruisePlaying:    return 0.12
+        default:                return 0
+        }
     }
 
     private func openIdeas() {
@@ -150,12 +179,46 @@ struct ReadingView: View {
         showingIdeas = true
     }
 
+    // MARK: Settings button (top-left, secondary)
+
+    /// A quiet gear pinned to the top-left corner — the entry to set-once
+    /// preferences (hand, default speed, start-in-cruise). Present at rest and
+    /// while paused; like the back chevron it steps off the surface the moment a
+    /// thumb hold begins or a hands-free cruise is running, so reading stays sacred.
+    private var settingsButton: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                SettingsGear { openSettings() }
+                    .padding(.leading, 16)
+                Spacer(minLength: 0)
+            }
+            // Below the status area; the back chevron sits lower at vertical center.
+            .padding(.top, 8)
+            Spacer(minLength: 0)
+        }
+        .opacity(editVisible ? 1 : 0)
+        .allowsHitTesting(editVisible)
+        .animation(.easeOut(duration: 0.22), value: editVisible)
+    }
+
+    private func openSettings() {
+        viewModel.overlayPresented()
+        showingSettings = true
+    }
+
+    /// Bank the "seen" flag so the coaching never returns, and fade it out.
+    private func dismissGestureHints() {
+        UserDefaults.standard.set(true, forKey: Self.hintsSeenKey)
+        withAnimation(.easeOut(duration: 0.22)) { showGestureHints = false }
+    }
+
     // MARK: Word (rides high, anchored on the reading-hand side)
 
-    private func topContent(height: CGFloat) -> some View {
+    private func topContent(height: CGFloat, width: CGFloat) -> some View {
         VStack(spacing: 0) {
             PivotWord(word: viewModel.currentToken?.text ?? "",
                       anchorX: pivotAnchorX,
+                      containerWidth: width,
                       warmth: viewModel.speedWarmth)
                 // Hold the baseline steady; no per-word animation/jitter.
                 .animation(nil, value: viewModel.currentIndex)
@@ -169,9 +232,21 @@ struct ReadingView: View {
 
     // MARK: Context strip + progress (foot of the screen)
 
-    /// The line-by-line context belongs to an active session — hide it on the
-    /// completion screen and when there's nothing loaded.
+    /// The context strip belongs to the *resting* surface — shown at the ready and
+    /// when paused (a scrub holds the reader paused, so it stays up and re-anchors
+    /// as you drag). It is deliberately gone during an active hold or cruise: while
+    /// words actually stream, the focal pivot word is the whole surface, and a
+    /// paragraph re-flowing at the foot would only add motion and compete. Hidden on
+    /// the completion screen and when nothing's loaded.
     private var showsContext: Bool {
+        viewModel.hasText &&
+        (viewModel.state == .ready || viewModel.state == .paused)
+    }
+
+    /// Any live reading session (not idle/completed). Keeps the progress scrubber
+    /// present and seekable even while cruising — where the context strip itself is
+    /// hidden, the scrubber shouldn't disappear with it.
+    private var inSession: Bool {
         viewModel.hasText &&
         (viewModel.state == .ready || viewModel.state == .precisionHeld ||
          viewModel.state == .paused || viewModel.state == .cruisePlaying)
@@ -216,19 +291,19 @@ struct ReadingView: View {
                 // Center the 40pt touch strip on the line sitting at bottom 26.
                 .padding(.bottom, 7.5)
         }
-        .opacity(showsContext ? 1 : 0)
-        .allowsHitTesting(showsContext)
+        .opacity(inSession ? 1 : 0)
+        .allowsHitTesting(inSession)
     }
 
     // MARK: Canvas hit-test gate (keeps the bare surface tappable)
 
     /// A transparent full-surface shape that simply guarantees the bare canvas —
     /// the patches with no word/context drawn on them — reports touches, so the
-    /// root double-tap can fire there too. It carries no gesture of its own: the
-    /// cruise toggle lives on the whole ZStack (`cruiseToggleGesture`) so a
-    /// double-tap works *anywhere*, the thumb rail included, not just the center-
-    /// left. Inert while actively holding or finished, so the surface stays sacred
-    /// during a read.
+    /// root tap gestures can fire there too. It carries no gesture of its own: the
+    /// cruise taps live on the whole ZStack (`cruiseTapGesture`) so a double-tap
+    /// (hand off) or single-tap (stop) works *anywhere*, the thumb rail included,
+    /// not just the center-left. Inert while actively holding or finished, so the
+    /// surface stays sacred during a read.
     @ViewBuilder
     private var canvasTapLayer: some View {
         let base = Color.clear.contentShape(Rectangle())
@@ -240,13 +315,22 @@ struct ReadingView: View {
         }
     }
 
-    /// The single hands-free toggle, recognized across the *entire* surface as a
-    /// simultaneous gesture so it never fights the thumb rail's hold/steer drag:
-    /// a double-tap hands off to cruise from rest, or takes the wheel back while
-    /// cruising. A *double* tap (never a stray single) means an accidental brush
-    /// never stops the flow; the view model no-ops it mid-hold or when finished.
-    private var cruiseToggleGesture: some Gesture {
-        TapGesture(count: 2).onEnded { viewModel.toggleCruise() }
+    /// Hands-free tap controls, recognized across the *entire* surface as a
+    /// simultaneous gesture so they never fight the thumb rail's hold/steer drag.
+    /// A double-tap hands off to cruise from rest (and still toggles it off while
+    /// cruising); a *single* tap is the obvious brake — while cruising it pauses
+    /// immediately, the easy panic/stop gesture the surface was missing. The two
+    /// compose *exclusively* so a genuine double-tap is never misread as two
+    /// singles: the double wins, and the single only resolves once no second tap
+    /// follows. From a resting state the single tap is guarded to a no-op, so an
+    /// accidental brush never starts a read or kicks off cruise.
+    private var cruiseTapGesture: some Gesture {
+        ExclusiveGesture(
+            TapGesture(count: 2).onEnded { viewModel.toggleCruise() },
+            TapGesture(count: 1).onEnded {
+                if viewModel.state == .cruisePlaying { viewModel.pauseCruise() }
+            }
+        )
     }
 
     // MARK: Cruise indicator (hands-free "still flowing" glyph)
@@ -503,6 +587,71 @@ struct ReadingView: View {
     }
 }
 
+/// One-time gesture coaching, shown on the first reader entry: a compact
+/// translucent card over a dimmed surface that names the controls once, then gets
+/// out of the way for good. Small and warm — the same surface/hairline family as
+/// the other overlays, not full-screen onboarding theater. The backdrop swallows
+/// touches so the lesson never leaks a stray cruise toggle to the surface beneath;
+/// tapping it, or "Got it", dismisses (the parent persists the flag).
+private struct GestureHintsOverlay: View {
+    let onDismiss: () -> Void
+
+    private let hints: [(icon: String, text: String)] = [
+        ("hand.point.up.left.fill", "Hold to read"),
+        ("arrow.up.arrow.down",     "Slide to change speed"),
+        ("arrow.left.and.right",    "Flick left/right to jump"),
+        ("infinity",                "Double-tap for Cruise"),
+        ("pause.fill",              "Tap to pause"),
+    ]
+
+    var body: some View {
+        ZStack {
+            // Dimmed, tap-swallowing backdrop: focuses the card and stops any tap
+            // from reaching the reading surface (cruise toggle, rail) underneath.
+            Color.black.opacity(0.55)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { onDismiss() }
+
+            VStack(spacing: 0) {
+                Text("Gestures")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .tracking(3)
+                    .foregroundStyle(Color.readingMuted)
+                    .padding(.bottom, 20)
+
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(hints, id: \.text) { hint in
+                        HStack(spacing: 14) {
+                            Image(systemName: hint.icon)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.readingAccent)
+                                .frame(width: 26)
+                            Text(hint.text)
+                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                                .foregroundStyle(Color.readingForeground)
+                        }
+                    }
+                }
+
+                Button(action: onDismiss) {
+                    Text("Got it")
+                }
+                .buttonStyle(PrimaryPillStyle())
+                .padding(.top, 26)
+            }
+            .padding(28)
+            .frame(maxWidth: 320)
+            .background(Color.readingSurface,
+                        in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.readingBorder, lineWidth: 1))
+            .shadow(color: .black.opacity(0.35), radius: 26, y: 10)
+            .padding(.horizontal, 32)
+        }
+    }
+}
+
 /// The "new text copied" pickup chip: a clipboard glyph, a short label, and a
 /// quiet dismiss. A compact floating pill for the lower thumb zone — the body is
 /// one tap-to-load button; the trailing ✕ keeps the current read. Styled to match
@@ -620,9 +769,18 @@ private extension HorizontalAlignment {
 /// One RSVP word laid out around its Optimal Recognition Point. The pivot letter
 /// (`ORP.split`) is painted in the amber accent and its *center* is locked to a
 /// fixed x, so the eye holds one unmoving spot while `before`/`after` flow out to
-/// the sides. The lock is geometric, not measured: a custom alignment guide marks
-/// the pivot's center and a fixed-width frame pins it — so word length, glyph
-/// width, punctuation, and numbers can never shift the anchor or jitter it.
+/// the sides. For ordinary words the lock is geometric and total — a custom
+/// alignment guide marks the pivot's center and a fixed-width frame pins it, so
+/// word length, glyph width, punctuation, and numbers never shift the anchor.
+///
+/// Long words ("recommendation", URLs, long numbers) are the exception: at full
+/// size they'd spill off the leading edge or past the trailing margin, and a
+/// clipped word reads as broken. So before rendering we measure the word's three
+/// runs and run a deterministic fit (`PivotFitSolver`): keep the pivot fixed and
+/// the size full whenever it fits; otherwise shrink the font (pivot still fixed);
+/// and only if it still won't fit at the readable floor, shift the whole word the
+/// minimum needed to stay in-bounds. The correction is instant and jitter-free —
+/// never animated — and the baseline is held constant across sizes.
 ///
 /// The pivot sits in the left focal column for *both* hands. ORP puts the pivot in
 /// a word's first third, so the longer `after` tail always trails to the right —
@@ -632,16 +790,26 @@ private struct PivotWord: View {
     let word: String
     /// Distance of the locked pivot center from the leading screen edge.
     let anchorX: CGFloat
+    /// Full container (screen) width, so the fit can respect the trailing margin.
+    let containerWidth: CGFloat
     /// Speed warmth (0…1): the focal ORP letter heats from calm gold toward a
     /// golden amber as pace climbs — soft when slow, more energized when fast.
     var warmth: Double = 0
 
     // Large, rounded, and solidly weighted for a crisp, high-contrast focal word
-    // that never thins out or shimmers. Generously legible without going cartoonish.
-    private let font = Font.system(size: 52, weight: .semibold, design: .rounded)
+    // that never thins out or shimmers. `baseSize` is the everyday size; long words
+    // shrink toward `minSize` before any shift is considered.
+    private let baseSize: CGFloat = 52
+    private let minSize: CGFloat = 30
+    private let weight: UIFont.Weight = .semibold
+    private let tracking: CGFloat = 0.5
+    /// Horizontal breathing room kept between the active word and each screen edge.
+    private let sideMargin: CGFloat = 16
 
     var body: some View {
         let parts = ORP.split(word)
+        let fit = resolveFit(parts)
+        let size = CGFloat(fit.fontSize)
 
         HStack(spacing: 0) {
             Text(parts.before).foregroundStyle(Color.readingForeground)
@@ -651,17 +819,62 @@ private struct PivotWord: View {
                 .alignmentGuide(.pivotCenter) { $0[HorizontalAlignment.center] }
             Text(parts.after).foregroundStyle(Color.readingForeground)
         }
-        .font(font)
-        .tracking(0.5)
+        .font(.system(size: size, weight: .semibold, design: .rounded))
+        .tracking(tracking)
         .lineLimit(1)
-        // Natural width (no scaling): a long word extends past the anchor rather
-        // than shrinking, so the pivot never moves between tokens.
+        // Measured, not wrapped: the fit already guarantees it stays in bounds.
         .fixedSize()
-        // A column exactly `2·anchorX` wide centers the pivot at `anchorX`; the
-        // word overflows symmetrically without nudging that locked point.
+        // A column exactly `2·anchorX` wide centers the pivot at `anchorX`; the word
+        // overflows symmetrically without nudging that locked point.
         .frame(width: anchorX * 2,
                alignment: Alignment(horizontal: .pivotCenter, vertical: .center))
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Last-resort horizontal nudge for words too long to fit even when shrunk.
+        // Zero for everything else, so the pivot stays put for normal words.
+        .offset(x: CGFloat(fit.shift))
+        // Hold the baseline steady across sizes: push a shrunk word down by the
+        // ascent it lost, inside a fixed-height box, so smaller words don't ride up.
+        .padding(.top, baselineDrop(for: size))
+        .frame(height: lineHeight(baseSize), alignment: .top)
+    }
+
+    /// Measure the three runs at base size and solve for the size + shift that keeps
+    /// the word inside the horizontal safe margins with the pivot anchored.
+    private func resolveFit(_ parts: ORP.Pivot) -> PivotFit {
+        PivotFitSolver.solve(
+            beforeWidth: Double(width(parts.before, baseSize)),
+            pivotWidth: Double(width(parts.pivot, baseSize)),
+            afterWidth: Double(width(parts.after, baseSize)),
+            anchorX: Double(anchorX),
+            totalWidth: Double(containerWidth),
+            leftMargin: Double(sideMargin),
+            rightMargin: Double(sideMargin),
+            baseFontSize: Double(baseSize),
+            minFontSize: Double(minSize)
+        )
+    }
+
+    /// Width of a run rendered in the active word's actual font + tracking. Empty
+    /// runs measure to zero. Tracking adds one inter-glyph gap per character.
+    private func width(_ s: String, _ size: CGFloat) -> CGFloat {
+        guard !s.isEmpty else { return 0 }
+        let attrs: [NSAttributedString.Key: Any] = [.font: uiFont(size), .kern: tracking]
+        return ceil((s as NSString).size(withAttributes: attrs).width)
+    }
+
+    /// The rounded system font matching the SwiftUI `.rounded` design, for measuring.
+    private func uiFont(_ size: CGFloat) -> UIFont {
+        let base = UIFont.systemFont(ofSize: size, weight: weight)
+        guard let d = base.fontDescriptor.withDesign(.rounded) else { return base }
+        return UIFont(descriptor: d, size: size)
+    }
+
+    private func lineHeight(_ size: CGFloat) -> CGFloat { uiFont(size).lineHeight }
+
+    /// How far to drop a shrunk word so its baseline matches the full-size baseline.
+    /// Ascent scales with point size, so the lost ascent is the drop. Zero at base.
+    private func baselineDrop(for size: CGFloat) -> CGFloat {
+        max(0, uiFont(baseSize).ascender - uiFont(size).ascender)
     }
 }
 

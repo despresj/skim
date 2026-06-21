@@ -257,10 +257,17 @@ expectEqual(SpeedBand(wpm: 1000).slower(), SpeedBand(wpm: 975), "slower steps do
 expectEqual(SpeedBand(wpm: 300).slower(), SpeedBand(wpm: 300), "slower clamps at 300")
 expectEqual(SpeedBand(wpm: 300).label, "Calm", "low end reads as Calm")
 expectEqual(SpeedBand(wpm: 1000).label, "Blast", "top end reads as Blast")
-expectEqual(SpeedBand.cruise.wpm, 400, "default cruise opens at a calm 400 wpm")
+expectEqual(SpeedBand.cruise.wpm, 400, "default cruise falls back to a calm 400 wpm")
 expectEqual(SpeedBand.cruise.label, "Cruise", "default opens in the Cruise band, never Blast")
-expectEqual(SpeedBand.imported.wpm, 400, "explicit imports open at a brisk 400 wpm, not a slow 200")
-expectEqual(SpeedBand.imported.wpm, SpeedBand.cruise.wpm, "import default agrees with a cold-start cruise")
+// `nearest` resolves any stored/computed speed onto a real, in-range detent — the
+// clamp every auto-start ramp target flows through.
+expectEqual(SpeedBand.nearest(to: 400).wpm, 400, "400 resolves to the 400 detent")
+expectEqual(SpeedBand.nearest(to: 500).wpm, 500, "500 resolves to the 500 detent")
+expectEqual(SpeedBand.nearest(to: 350).wpm, 350, "350 resolves to the 350 detent")
+expectEqual(SpeedBand.nearest(to: 412).wpm, 400, "an off-grid value snaps to the nearest detent")
+expectEqual(SpeedBand.nearest(to: 99_999).wpm, SpeedBand.maxWPM, "an absurdly high preference clamps to the max")
+expectEqual(SpeedBand.nearest(to: 10).wpm, SpeedBand.minWPM, "a sub-floor preference clamps to the min")
+expect(SpeedBand.allCases.contains(SpeedBand.nearest(to: 533)), "nearest always returns a real detent")
 expectEqual(SpeedBand(wpm: 300).warmth, 0.0, "slowest band is coolest (warmth 0)")
 expectEqual(SpeedBand(wpm: 1000).warmth, 1.0, "fastest band is warmest (warmth 1)")
 expectEqual(SpeedBand(wpm: 650).warmth, 0.5, "midpoint band is half-warm")
@@ -402,6 +409,10 @@ do {
     expectEqual(open.first?.contextSnippet, "…the long word here…", "context snippet round-trips")
     expectEqual(open.last?.sourceReadId, nil, "absent source read id stays nil")
 
+    try store.updateIdeaText(id: "i1", text: "Scrubber thumb is too small", updatedAt: t1)
+    expectEqual(try store.ideas(status: .open).first(where: { $0.id == "i1" })?.text,
+                "Scrubber thumb is too small", "editing an idea persists the new text")
+
     try store.updateIdeaStatus(id: "i1", status: .done, updatedAt: t1)
     expectEqual(try store.ideas(status: .open).map(\.id), ["i2"], "marking done removes it from the open list")
     expectEqual(try store.ideas(status: .done).map(\.id), ["i1"], "done idea is findable under done")
@@ -438,6 +449,9 @@ do {
     expectEqual(r1?.readingHand, "left", "position update persists reading hand")
     expectEqual(try store.recentReads(limit: 10).map(\.id), ["r1", "r2"], "a position update refloats the read")
 
+    try store.updateReadTitle(id: "r1", title: "Renamed read", updatedAt: t2)
+    expectEqual(try store.readItem(id: "r1")?.title, "Renamed read", "renaming a read persists the new title")
+
     try store.markCompleted(id: "r2", tokenIndex: 1, completedAt: t2)
     let r2 = try store.readItem(id: "r2")
     expectEqual(r2?.status, ReadStatus.completed, "finishing sets status completed")
@@ -448,6 +462,94 @@ do {
     expectEqual(try store.recentReads(limit: 10).map(\.id), ["r2"], "delete removes the read from recents")
 } catch {
     expect(false, "read-items store threw: \(error)")
+}
+
+print("SpeedRamp — auto-start acceleration")
+do {  // plain scope — these checks don't throw
+    let ramp = SpeedRamp(fromWPM: 300, toWPM: 400, duration: 2.0)
+    expect(ramp.isClimbing, "a 300→400 ramp has speed to climb")
+    expectEqual(ramp.easedFraction(at: 0), 0.0, "starts at zero progress")
+    expectEqual(ramp.easedFraction(at: 2.0), 1.0, "reaches full progress at duration")
+    expectEqual(ramp.easedFraction(at: -1), 0.0, "clamps before the start")
+    expectEqual(ramp.easedFraction(at: 99), 1.0, "clamps after the end")
+    expectEqual(ramp.easedFraction(at: 1.0), 0.5, "smoothstep midpoint is half progress")
+
+    // Opens at the floor, lands exactly on target.
+    expectEqual(ramp.band(at: 0).wpm, 300, "opens at the slow floor")
+    expectEqual(ramp.band(at: 2.0).wpm, 400, "lands exactly on the target band")
+    // Snapped samples never overshoot the target and never dip below the floor.
+    let samples = stride(from: 0.0, through: 2.0, by: 0.1).map { ramp.band(at: $0).wpm }
+    expect(samples.allSatisfy { $0 >= 300 && $0 <= 400 }, "every ramp band stays within [floor, target]")
+    // Monotonic non-decreasing: eased acceleration never steps backward.
+    expect(zip(samples, samples.dropFirst()).allSatisfy { $0 <= $1 }, "ramp bands climb monotonically")
+    // Every snapped band is a real detent (so the gauge stays valid).
+    expect(samples.allSatisfy { wpm in SpeedBand.allCases.contains { $0.wpm == wpm } },
+           "every ramp band is a real SpeedBand detent")
+
+    // Degenerate ramps are no-ops that land on target.
+    let flat = SpeedRamp(fromWPM: 400, toWPM: 400, duration: 2.0)
+    expect(!flat.isClimbing, "a same-speed ramp has nothing to climb")
+    let instant = SpeedRamp(fromWPM: 300, toWPM: 400, duration: 0)
+    expect(!instant.isClimbing, "a zero-duration ramp has nothing to climb")
+    expectEqual(instant.band(at: 0).wpm, 400, "a zero-duration ramp is already at target")
+}
+
+print("SpeedRamp — targets the configured cruising speed, not a fixed 400")
+do {  // plain scope — these checks don't throw
+    // The ramp is not tied to 400: it lands wherever the default cruising speed
+    // points. From the floor, every configured target is reached exactly.
+    let floor = SpeedBand.minWPM
+    for target in [350, 400, 500, 650] {
+        let r = SpeedRamp(fromWPM: floor, toWPM: SpeedBand.nearest(to: target).wpm, duration: 2.0)
+        expectEqual(r.band(at: 0).wpm, floor, "ramp toward \(target) opens at the floor")
+        expectEqual(r.band(at: 2.0).wpm, target, "ramp toward \(target) lands on \(target)")
+    }
+
+    // An out-of-range preference resolves (via `nearest`) before the ramp, so the
+    // target clamps safely to the speed range.
+    let tooHigh = SpeedRamp(fromWPM: floor, toWPM: SpeedBand.nearest(to: 5_000).wpm, duration: 2.0)
+    expectEqual(tooHigh.band(at: 2.0).wpm, SpeedBand.maxWPM, "an over-max preference ramps only to the max")
+    let tooLow = SpeedRamp(fromWPM: floor, toWPM: SpeedBand.nearest(to: 50).wpm, duration: 2.0)
+    expect(!tooLow.isClimbing, "a sub-floor preference resolves to the floor — a no-op ramp")
+    expectEqual(tooLow.band(at: 0).wpm, floor, "a floor-level target starts (and stays) at the floor")
+}
+
+print("PivotFitSolver — long-word safe-area fit")
+do {  // plain scope — these checks don't throw
+    // Geometry shared by these cases: a 390pt-wide screen, pivot locked at 110,
+    // 16pt margins, font 52 down to a 30pt floor. Glyph ~30pt wide at base.
+    let W = 390.0, anchor = 110.0, mL = 16.0, mR = 16.0, base = 52.0, minF = 30.0
+    func solve(before: Double, pivot: Double, after: Double) -> PivotFit {
+        PivotFitSolver.solve(beforeWidth: before, pivotWidth: pivot, afterWidth: after,
+                             anchorX: anchor, totalWidth: W,
+                             leftMargin: mL, rightMargin: mR,
+                             baseFontSize: base, minFontSize: minF)
+    }
+
+    // A short word fits with room to spare: full size, pivot fixed, no shift.
+    let short = solve(before: 30, pivot: 30, after: 60)
+    expectEqual(short.fontSize, base, "a short word renders at full size")
+    expectEqual(short.shift, 0, "a short word never shifts")
+
+    // A long word that overflows at full size shrinks to fit — pivot still fixed.
+    let long = solve(before: 96, pivot: 32, after: 320)   // ~"recommendation"
+    expect(long.fontSize < base, "a long word reduces font size to avoid clipping")
+    expect(long.fontSize >= minF, "the reduction stays at or above the readable floor")
+    expectEqual(long.shift, 0, "a long word that fits when shrunk does not shift")
+    // Verify it actually fits within the margins at the chosen size.
+    let scale = long.fontSize / base
+    let leftEdge = anchor - (96 + 16) * scale
+    let rightEdge = anchor + (16 + 320) * scale
+    expect(leftEdge >= mL - 0.5, "shrunk long word's left edge clears the left margin")
+    expect(rightEdge <= W - mR + 0.5, "shrunk long word's right edge clears the right margin")
+
+    // A pathological token that can't fit even at the floor: clamps to the floor and
+    // shifts right just enough to reveal its start, never below min size.
+    let huge = solve(before: 240, pivot: 32, after: 480)
+    expectEqual(huge.fontSize, minF, "an unfittable token clamps to the minimum size, not below")
+    expect(huge.shift > 0, "an unfittable token shifts to reveal its start")
+    let hugeLeft = anchor - (240 + 16) * (minF / base) + huge.shift
+    expect(abs(hugeLeft - mL) < 0.5, "the shift lands the left edge exactly on the margin")
 }
 
 print("")

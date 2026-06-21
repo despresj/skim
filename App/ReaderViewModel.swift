@@ -29,6 +29,37 @@ final class ReaderViewModel {
         didSet { UserDefaults.standard.set(isLeftHanded, forKey: "skim.isLeftHanded") }
     }
 
+    /// The user's configured default *cruising* speed, in words-per-minute — the
+    /// raw stored preference set in Settings. Every explicit "read this now" path
+    /// accelerates toward this (resolved through `defaultCruisingBand`), and a fresh
+    /// manual read opens here; the live vertical slide still moves speed freely
+    /// within a read. Persisted. Defaults to the calm `cruise` band (currently 400),
+    /// but 400 is just today's default — change this and every auto-start follows.
+    var defaultWpm: Int = UserDefaults.standard.object(forKey: "skim.defaultWpm") as? Int
+        ?? SpeedBand.cruise.wpm {
+        didSet { UserDefaults.standard.set(defaultWpm, forKey: "skim.defaultWpm") }
+    }
+
+    /// Whether a freshly loaded manual read begins streaming hands-free immediately
+    /// (cruise) instead of waiting at `.ready` for a thumb. Imports always cruise;
+    /// this controls the clipboard/paste path. Persisted. Off by default — the calm
+    /// default is to wait for the thumb.
+    var startInCruise: Bool = UserDefaults.standard.bool(forKey: "skim.startInCruise") {
+        didSet { UserDefaults.standard.set(startInCruise, forKey: "skim.startInCruise") }
+    }
+
+    /// The configured default cruising speed resolved to a real, in-range detent —
+    /// the single source of truth every auto-start ramp accelerates toward, and the
+    /// band a fresh manual read opens at. Clamps a stored preference that's somehow
+    /// out of range back onto the speed grid (see `SpeedBand.nearest`), so no call
+    /// site has to. Not a hardcoded constant: changing the Settings speed moves the
+    /// ramp target everywhere at once.
+    private var defaultCruisingBand: SpeedBand { SpeedBand.nearest(to: defaultWpm) }
+
+    /// The default cruising speed as whole WPM — what the ramp call sites pass as
+    /// their target.
+    private var defaultCruisingWpm: Int { defaultCruisingBand.wpm }
+
     /// True while a finger is dragging the progress scrubber. Playback is held the
     /// whole time; the view reads this to show the position readout/handle.
     private(set) var isScrubbing = false
@@ -42,6 +73,20 @@ final class ReaderViewModel {
     private var scrubQuarter = -1
 
     private var playbackTask: Task<Void, Never>?
+
+    /// A running auto-start speed ramp (gentle acceleration up to cruising speed).
+    /// Lives independently of the playback loop, which simply reads the live `band`
+    /// each word — so the ramp just nudges `band` along its curve and the pacing,
+    /// gauge, and warm colors all follow. Cancelled the instant the user takes
+    /// manual control (speed change, pause, scrub). `nil` when no ramp is in flight.
+    private var rampTask: Task<Void, Never>?
+
+    /// While a ramp is live, the speed it's climbing toward. Persistence uses this
+    /// instead of the transient ramping band, so pausing or saving mid-ramp banks
+    /// the *intended* cruising speed as the read's resume speed — never the slow
+    /// opening WPM. `nil` when not ramping.
+    private var rampTargetWpm: Int?
+
     private let haptics = Haptics()
 
     /// The local persistence store, shared with the Ideas panel. `nil` only if it
@@ -59,6 +104,9 @@ final class ReaderViewModel {
 
     init(store: SkimStore? = nil) {
         self.store = store
+        // Open at the user's preferred default speed so a cold start agrees with the
+        // Settings choice rather than the hardcoded cruise constant.
+        band = defaultCruisingBand
     }
 
     /// The text currently loaded into the reader, so re-grabbing the clipboard
@@ -155,6 +203,9 @@ final class ReaderViewModel {
     /// felt, not just seen. The playback loop reads `band` each tick, so a new
     /// speed takes effect on the very next word.
     func setBandIndex(_ index: Int) {
+        // Manual speed input always wins: a deliberate slide cancels the auto-start
+        // ramp so it can't keep climbing past where the user just parked the speed.
+        cancelRamp()
         let clamped = max(0, min(bands.count - 1, index))
         let newBand = bands[clamped]
         guard newBand != band else { return }
@@ -230,7 +281,7 @@ final class ReaderViewModel {
         switch DeepLinkParser.parse(url) {
         case .text(let text):
             pendingLink = nil
-            loadAndCruise(text, at: .imported, source: .deepLink)
+            loadAndCruise(text, source: .deepLink)
         case .url(let link):
             pendingLink = link
         case nil:
@@ -238,20 +289,22 @@ final class ReaderViewModel {
         }
     }
 
-    /// The deep-link "just start reading" path: load text, set the speed, and
-    /// hand straight off to hands-free cruise — no `.ready` pause, no thumb start.
-    /// Text arriving from a Shortcut, the Share Sheet, or the Action Button streams
-    /// on arrival at `band`. Reuses `load` + `enterCruise` so the start logic isn't
-    /// duplicated, and leaves normal manual paste/input (which routes through
-    /// `load` alone, arming `.ready`) untouched. Empty text never reaches here —
-    /// the parser rejects it — but we guard so a non-`.ready` load is a quiet no-op.
-    private func loadAndCruise(_ text: String, at band: SpeedBand, source: ReadSource, sourcePath: String? = nil) {
+    /// The deep-link "just start reading" path: load text and hand straight off to
+    /// hands-free cruise — no `.ready` pause, no thumb start. Text arriving from a
+    /// Shortcut, the Share Sheet, or the Action Button opens with the shared
+    /// auto-start ramp, gently accelerating up to the *configured default cruising
+    /// speed* (not a fixed import speed). Reuses `load` + `startReadingWithRamp` so
+    /// the start logic isn't duplicated, and leaves normal manual paste/input (which
+    /// routes through `load` alone, arming `.ready`) untouched. Empty text never
+    /// reaches here — the parser rejects it — but we guard so a non-`.ready` load is
+    /// a quiet no-op.
+    private func loadAndCruise(_ text: String, source: ReadSource, sourcePath: String? = nil) {
         load(text, source: source, sourcePath: sourcePath)
         guard state == .ready else { return }
-        self.band = band
-        // Bank the import speed onto the fresh record (load recorded the prior band).
-        saveProgress()
-        enterCruise()
+        // Open gently: begin slow and accelerate up to the user's default cruising
+        // speed, instead of snapping straight to full pace. The ramp banks the
+        // target speed onto the record, so this no longer needs its own `saveProgress`.
+        startReadingWithRamp(targetWpm: defaultCruisingWpm)
     }
 
     /// Route an inbound *file* URL — a `.txt` opened into Skim from a Shortcut,
@@ -267,7 +320,7 @@ final class ReaderViewModel {
         lastPasteboardChange = UIPasteboard.general.changeCount
         guard let text = Self.readImportedText(from: url) else { return }
         pendingLink = nil
-        loadAndCruise(text, at: .imported, source: .file, sourcePath: url.path)
+        loadAndCruise(text, source: .file, sourcePath: url.path)
     }
 
     /// Read a `.txt` file's contents as sanitized text, or `nil` if it can't be
@@ -317,7 +370,17 @@ final class ReaderViewModel {
         state = tokens.isEmpty ? .idle : .ready
         hasPendingClipboard = false
         pendingResume = nil
+        // A fresh manual read opens at the user's default cruising speed; imports
+        // set their own band via `loadAndCruise` after this returns.
+        if source == .manual { band = defaultCruisingBand }
         recordLoadedRead(text, source: source, sourcePath: sourcePath)
+        // Honor the "start in cruise" preference for manual loads — and, like the
+        // imports, open with the gentle ramp up to the default cruising speed rather
+        // than snapping to full pace. Imports drive their own ramp; an empty load
+        // stays idle.
+        if source == .manual, startInCruise, state == .ready {
+            startReadingWithRamp(targetWpm: defaultCruisingWpm)
+        }
     }
 
     /// Create the persistent record for freshly loaded text and adopt its id as the
@@ -336,7 +399,7 @@ final class ReaderViewModel {
             createdAt: now,
             updatedAt: now,
             lastTokenIndex: 0,
-            lastWpm: wpm,
+            lastWpm: persistedWpm,
             readingHand: handString,
             status: .active
         )
@@ -351,21 +414,19 @@ final class ReaderViewModel {
     }
 
     /// "Read Again" from the end-of-read review: jump back to the top and start
-    /// streaming hands-free at the brisk import speed — explicit imported text
-    /// earns an immediate On start. The reading hand and UI style are untouched.
-    /// Re-entrant: each tap cancels any running loop first, so repeated taps can't
-    /// stack playback tasks. A no-op with nothing loaded.
+    /// streaming hands-free — explicit imported text earns an immediate On start.
+    /// Like the imports, it opens with the shared gentle ramp up to the user's
+    /// default cruising speed rather than snapping to full pace. The reading hand and
+    /// UI style are untouched. Re-entrant: each tap cancels any running loop/ramp
+    /// first, so repeated taps can't stack playback tasks. A no-op with nothing loaded.
     func readAgain() {
         guard hasText else { return }
         cancelPlayback()
         isScrubbing = false
         currentIndex = 0
-        band = .imported
-        mode = .cruise
-        state = .cruisePlaying
+        state = .ready
         reactivateRead()
-        haptics.tick(.start)
-        startPlayback()
+        startReadingWithRamp(targetWpm: defaultCruisingWpm)
     }
 
     /// Flip a finished read back to `active` at the top, so a "Read Again" leaves it
@@ -375,7 +436,7 @@ final class ReaderViewModel {
         item.status = .active
         item.completedAt = nil
         item.lastTokenIndex = 0
-        item.lastWpm = wpm
+        item.lastWpm = persistedWpm
         item.updatedAt = Date()
         try? store.upsertReadItem(item)
     }
@@ -542,6 +603,79 @@ final class ReaderViewModel {
         if shouldResume { enterCruise() }
     }
 
+    // MARK: Auto-start ramp (gentle acceleration)
+
+    /// Shared auto-start for every explicit "read this now" path: arm the already
+    /// loaded text in hands-free On mode but open *gently* — begin at `fromWpm` and
+    /// smoothly accelerate to `targetWpm` over `duration` seconds, so the first
+    /// second orients instead of slapping you with full speed. The speed gauge and
+    /// warm color system follow the live ramping band for free.
+    ///
+    /// Requires text armed at `.ready` (a no-op otherwise). Any manual speed change,
+    /// pause, or scrub cancels the ramp and leaves the user in control at whatever
+    /// speed they chose; a rewind/forward flick keeps ramping smoothly underneath.
+    private func startReadingWithRamp(targetWpm: Int,
+                                      fromWpm: Int = SpeedBand.minWPM,
+                                      duration: Double = 2.0) {
+        guard state == .ready else { return }
+        cancelRamp()
+
+        // Resolve both ends onto real, in-range detents. `nearest` clamps a target
+        // that's somehow out of range (preference too high/low) safely to the
+        // max/floor, so no call site can push the ramp off the speed grid. The floor
+        // is never above the target, so `isClimbing` correctly treats a floor-level
+        // target as a no-op.
+        let target = SpeedBand.nearest(to: targetWpm)
+        let from = SpeedBand.nearest(to: min(fromWpm, target.wpm))
+        let ramp = SpeedRamp(fromWPM: from.wpm, toWPM: target.wpm, duration: duration)
+
+        // Remember the destination so a save mid-ramp banks the cruising speed, not
+        // the slow opening one. Open at the gentle starting band, then hand off.
+        rampTargetWpm = target.wpm
+        band = from
+        // Bank the intended speed onto the record up front (persistedWpm == target),
+        // so even an immediate pause resumes at the cruising speed, not the floor.
+        saveProgress()
+        enterCruise()
+
+        // Nothing to climb (already at/above target, or zero duration): land exactly
+        // on target and skip the animation.
+        guard ramp.isClimbing else {
+            band = target
+            cancelRamp()
+            return
+        }
+
+        // Sample the smoothstep curve on a fine cadence; `band(at:)` snaps each
+        // sample to a real detent, so we only actually move the band a handful of
+        // times — exactly when the gauge should tick up — without robotic stepping.
+        rampTask = Task { @MainActor [weak self] in
+            let dt = 0.04
+            var elapsed = 0.0
+            while !Task.isCancelled, elapsed < duration {
+                try? await Task.sleep(for: .seconds(dt))
+                if Task.isCancelled { return }
+                guard let self else { return }
+                elapsed += dt
+                let next = ramp.band(at: elapsed)
+                if next != self.band { self.band = next }
+            }
+            guard let self, !Task.isCancelled else { return }
+            // Settle exactly on the target band and clear the ramp.
+            self.band = target
+            self.cancelRamp()
+        }
+    }
+
+    /// Cancel any in-flight auto-start ramp and clear its target. Idempotent — safe
+    /// to call from the playback-stop and manual-speed paths whether or not a ramp
+    /// is actually running.
+    private func cancelRamp() {
+        rampTask?.cancel()
+        rampTask = nil
+        rampTargetWpm = nil
+    }
+
     // MARK: Cruise (hands-free autoplay)
 
     /// Double-tap the canvas to hand off: playback continues from the current
@@ -617,12 +751,18 @@ final class ReaderViewModel {
     /// The current reading hand as the stored string ("left" / "right").
     private var handString: String { isLeftHanded ? "left" : "right" }
 
+    /// The speed to persist as the read's resume cursor. While an auto-start ramp is
+    /// climbing this is the ramp's *target* (the intended cruising speed), not the
+    /// transient ramping band — so a pause or checkpoint mid-ramp never banks the
+    /// slow opening WPM as the session's resume speed. Otherwise it's the live band.
+    private var persistedWpm: Int { rampTargetWpm ?? wpm }
+
     /// Persist the resume cursor (position, speed, hand) for the current read. The
     /// hot path — called on every pause, scrub-release, background, and periodic
     /// checkpoint. A cheap single-row UPDATE; a no-op without a record or store.
     private func saveProgress() {
         guard let store, let id = currentReadId, !tokens.isEmpty else { return }
-        try? store.updatePosition(id: id, tokenIndex: currentIndex, wpm: wpm,
+        try? store.updatePosition(id: id, tokenIndex: currentIndex, wpm: persistedWpm,
                                   readingHand: handString, updatedAt: Date())
     }
 
@@ -646,8 +786,10 @@ final class ReaderViewModel {
     }
 
     /// Open a stored read where it was left off: restore its body, position, speed,
-    /// and reading hand, and arm the reader at that spot (no autoplay — a deliberate
-    /// resume waits for the thumb or a double-tap). Reuses the existing record. A
+    /// and reading hand, and arm the reader at that spot. Normally a deliberate
+    /// resume waits for the thumb or a double-tap, but the global "start in cruise"
+    /// preference applies to *every* entry into reading — so when it's on, a resume
+    /// streams hands-free from the saved spot too. Reuses the existing record. A
     /// no-op if the body has gone empty.
     func resume(_ item: ReadItem) {
         cancelPlayback()
@@ -664,6 +806,7 @@ final class ReaderViewModel {
         state = .ready
         // Touch updated_at so the resumed read floats to the top of recents.
         saveProgress()
+        if startInCruise { enterCruise() }
     }
 
     /// Dismiss the resume/library screen to read something new — drops to the paste
@@ -671,6 +814,18 @@ final class ReaderViewModel {
     func dismissResume() {
         pendingResume = nil
         state = .idle
+    }
+
+    /// Rename a stored read from the library. Empty/whitespace falls back to a
+    /// title derived from the body, so a read never ends up blank. Refloats nothing
+    /// on its own beyond the `updated_at` bump the rename writes.
+    func renameRead(_ item: ReadItem, title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newTitle = trimmed.isEmpty ? ReadItem.deriveTitle(from: item.body) : trimmed
+        try? store?.updateReadTitle(id: item.id, title: newTitle, updatedAt: Date())
+        refreshRecents()
+        // Keep the resume candidate's title in sync if it was the one renamed.
+        if pendingResume?.id == item.id { refreshPendingResume() }
     }
 
     /// Forget a read entirely from the library. If it was the resume candidate,
@@ -719,5 +874,10 @@ final class ReaderViewModel {
     private func cancelPlayback() {
         playbackTask?.cancel()
         playbackTask = nil
+        // Stopping the engine (pause, scrub, background, finish, new load) always
+        // ends any auto-start ramp too — it only makes sense while reading forward.
+        // Restart-in-place after a flick uses `startPlayback` directly, not this, so
+        // a flick leaves the ramp climbing.
+        cancelRamp()
     }
 }

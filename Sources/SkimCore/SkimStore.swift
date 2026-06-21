@@ -289,6 +289,16 @@ public final class SkimStore {
         return out
     }
 
+    /// Replace an idea's text (the panel's inline edit) and bump `updated_at`. The
+    /// caller trims; an empty string is the caller's to reject before getting here.
+    public func updateIdeaText(id: String, text: String, updatedAt: Date) throws {
+        try run("UPDATE improvement_ideas SET text = ?, updated_at = ? WHERE id = ?;") { stmt in
+            bindText(stmt, 1, text)
+            bindText(stmt, 2, iso.string(from: updatedAt))
+            bindText(stmt, 3, id)
+        }
+    }
+
     /// Flip an idea's status (open → done / dismissed) and bump `updated_at`.
     public func updateIdeaStatus(id: String, status: IdeaStatus, updatedAt: Date) throws {
         try run("UPDATE improvement_ideas SET status = ?, updated_at = ? WHERE id = ?;") { stmt in
@@ -404,6 +414,16 @@ public final class SkimStore {
         try query("\(readItemSelect) WHERE id = ? LIMIT 1;", bind: { bindText($0, 1, id) },
                   each: { found = Self.readItem(from: $0, iso: self.iso) })
         return found
+    }
+
+    /// Rename a read (the recents inline edit) and bump `updated_at`. A `nil` title
+    /// clears it back to "Untitled" at display time; the caller trims and decides.
+    public func updateReadTitle(id: String, title: String?, updatedAt: Date) throws {
+        try run("UPDATE read_items SET title = ?, updated_at = ? WHERE id = ?;") { stmt in
+            bindText(stmt, 1, title)
+            bindText(stmt, 2, iso.string(from: updatedAt))
+            bindText(stmt, 3, id)
+        }
     }
 
     /// Forget a read entirely (recents swipe-delete).

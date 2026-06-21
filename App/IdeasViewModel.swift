@@ -55,6 +55,17 @@ final class IdeasViewModel {
         return true
     }
 
+    /// Edit an idea's text in place. Empty/whitespace text is ignored (an edit can't
+    /// blank an idea). Returns whether anything was saved.
+    @discardableResult
+    func edit(_ idea: ImprovementIdea, newText: String) -> Bool {
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != idea.text, let store else { return false }
+        try? store.updateIdeaText(id: idea.id, text: trimmed, updatedAt: Date())
+        reload()
+        return true
+    }
+
     /// Mark an idea done — it drops out of the open list (kept on disk, not deleted).
     func markDone(_ idea: ImprovementIdea) {
         try? store?.updateIdeaStatus(id: idea.id, status: .done, updatedAt: Date())

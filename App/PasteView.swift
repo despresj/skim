@@ -18,6 +18,7 @@ struct PasteView: View {
     /// reader loads it automatically (see the debounce in `.task` below).
     @State private var draft = ""
     @FocusState private var fieldFocused: Bool
+    @State private var showingSettings = false
 
     var body: some View {
         ZStack {
@@ -44,6 +45,14 @@ struct PasteView: View {
             }
             .padding(.horizontal, 28)
             .padding(.bottom, 8)
+        }
+        .overlay(alignment: .topLeading) {
+            SettingsGear { showingSettings = true }
+                .padding(.leading, 16)
+                .padding(.top, 8)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(viewModel: viewModel)
         }
         // Debounced auto-start: each keystroke/paste restarts this task, so we
         // only commit once the text has settled (~400ms). Pasted articles clear

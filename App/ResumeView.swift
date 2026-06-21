@@ -10,6 +10,11 @@ struct ResumeView: View {
     let viewModel: ReaderViewModel
     let candidate: ReadItem
 
+    /// The read currently being renamed (drives the rename alert), plus its working title.
+    @State private var renaming: ReadItem?
+    @State private var renameDraft = ""
+    @State private var showingSettings = false
+
     /// Recent reads other than the hero candidate (which already has its own card).
     private var others: [ReadItem] {
         viewModel.recents.filter { $0.id != candidate.id }
@@ -44,6 +49,31 @@ struct ResumeView: View {
             }
         }
         .onAppear { viewModel.refreshRecents() }
+        .overlay(alignment: .topLeading) {
+            SettingsGear { showingSettings = true }
+                .padding(.leading, 16)
+                .padding(.top, 8)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(viewModel: viewModel)
+        }
+        .alert("Rename read", isPresented: Binding(
+            get: { renaming != nil },
+            set: { if !$0 { renaming = nil } }
+        )) {
+            TextField("Title", text: $renameDraft)
+            Button("Cancel", role: .cancel) { renaming = nil }
+            Button("Save") {
+                if let item = renaming { viewModel.renameRead(item, title: renameDraft) }
+                renaming = nil
+            }
+        }
+    }
+
+    /// Open the rename alert for a read, seeded with its current title.
+    private func beginRename(_ item: ReadItem) {
+        renameDraft = item.title ?? ""
+        renaming = item
     }
 
     // MARK: Header
@@ -72,6 +102,8 @@ struct ResumeView: View {
                     .foregroundStyle(Color.readingForeground)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
+                    // Leave room for the corner delete button on the title's line.
+                    .padding(.leading, 34)
 
                 ProgressBar(fraction: ReadProgress.fraction(candidate))
 
@@ -92,6 +124,12 @@ struct ResumeView: View {
                 .stroke(Color.readingBorder, lineWidth: 1))
         }
         .buttonStyle(.plain)
+        // A separate tap target so the hero (the single most-recent read) is
+        // deletable too — a permanent, no-retention delete, same as the list.
+        .overlay(alignment: .topLeading) {
+            ArmedDeleteButton { viewModel.deleteRead(candidate) }
+                .padding(10)
+        }
     }
 
     // MARK: Recents
@@ -108,16 +146,24 @@ struct ResumeView: View {
     private var recentsList: some View {
         List {
             ForEach(others) { item in
-                Button { viewModel.resume(item) } label: {
-                    RecentRow(item: item)
+                HStack(spacing: 4) {
+                    ArmedDeleteButton { viewModel.deleteRead(item) }
+
+                    Button { viewModel.resume(item) } label: {
+                        RecentRow(item: item)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
                 .listRowBackground(Color.clear)
                 .listRowSeparatorTint(Color.readingBorder)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) { viewModel.deleteRead(item) } label: {
                         Label("Delete", systemImage: "trash")
                     }
+                    Button { beginRename(item) } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                    .tint(Color.readingAccent)
                 }
             }
         }
@@ -157,6 +203,57 @@ private struct RecentRow: View {
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
+    }
+}
+
+/// A two-tap hard-delete button, pinned to the leading edge. The first tap *arms*
+/// it — the trash flares red — and a second tap within three seconds permanently
+/// forgets the read. If no second tap comes, the red fades out over those three
+/// seconds and the deletion disarms on its own, so a stray tap never deletes.
+private struct ArmedDeleteButton: View {
+    let onDelete: () -> Void
+
+    @State private var armed = false
+    /// Drives the visible red flare separately from `armed` so the color can fade
+    /// over three seconds while the armed window stays live until it lapses.
+    @State private var showRed = false
+    @State private var disarmTask: Task<Void, Never>?
+
+    var body: some View {
+        Button(role: .destructive) { tap() } label: {
+            Image(systemName: "trash")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(showRed ? Color.red : Color.readingMuted)
+                .frame(width: 40, height: 40)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onDisappear { disarmTask?.cancel() }
+    }
+
+    private func tap() {
+        if armed {
+            // Confirmed within the window: delete for good.
+            disarm()
+            onDelete()
+            return
+        }
+        // First tap: arm + flare red instantly, then fade the red away over three
+        // seconds. When the fade lapses, the deletion disarms itself.
+        armed = true
+        showRed = true
+        withAnimation(.linear(duration: 3)) { showRed = false }
+        disarmTask?.cancel()
+        disarmTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            if !Task.isCancelled { armed = false }
+        }
+    }
+
+    private func disarm() {
+        disarmTask?.cancel()
+        armed = false
+        showRed = false
     }
 }
 

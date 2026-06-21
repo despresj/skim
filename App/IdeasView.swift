@@ -14,6 +14,9 @@ struct IdeasView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft = ""
     @FocusState private var inputFocused: Bool
+    /// The idea currently being edited (drives the rename alert), plus its working text.
+    @State private var editing: ImprovementIdea?
+    @State private var editDraft = ""
 
     var body: some View {
         ZStack {
@@ -29,6 +32,17 @@ struct IdeasView: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground { ReadingCanvas() }
+        .alert("Edit idea", isPresented: Binding(
+            get: { editing != nil },
+            set: { if !$0 { editing = nil } }
+        )) {
+            TextField("Idea", text: $editDraft)
+            Button("Cancel", role: .cancel) { editing = nil }
+            Button("Save") {
+                if let idea = editing { ideas.edit(idea, newText: editDraft) }
+                editing = nil
+            }
+        }
         .onAppear {
             ideas.reload()
             // Open ready to capture — the whole point is speed.
@@ -110,6 +124,10 @@ struct IdeasView: View {
                             Button(role: .destructive) { ideas.delete(idea) } label: {
                                 Label("Delete", systemImage: "trash")
                             }
+                            Button { beginEdit(idea) } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            .tint(Color.readingAccent)
                         }
                 }
             }
@@ -117,6 +135,12 @@ struct IdeasView: View {
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.interactively)
         }
+    }
+
+    /// Open the rename alert for an idea, seeded with its current text.
+    private func beginEdit(_ idea: ImprovementIdea) {
+        editDraft = idea.text
+        editing = idea
     }
 
     private var emptyState: some View {

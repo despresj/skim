@@ -22,21 +22,25 @@ public struct SpeedBand: Equatable, Sendable {
     public static let allCases: [SpeedBand] =
         stride(from: minWPM, through: maxWPM, by: step).map(SpeedBand.init(wpm:))
 
-    /// A comfortable starting speed near the calm end. Sits squarely in the
-    /// "Cruise" band so a first-run / demo opens calm and inviting — never at a
-    /// scary Blast — leaving the upper speeds as something you deliberately ramp into.
+    /// The default *cruising* speed used when nothing else is configured — the
+    /// fallback for the user's "default cruising speed" preference and the band a
+    /// cold start opens at. Sits squarely in the "Cruise" band so a first run opens
+    /// calm and inviting, never at a scary Blast. Every explicit "read this now"
+    /// import now ramps toward the *configured* default cruising speed (this when
+    /// unset), so there's no separate hardcoded import speed — 400 is just today's
+    /// default, not a law of physics.
     public static let cruise = SpeedBand(wpm: 400)
 
-    /// The speed every explicit "read this now" *import* opens at — an opened
-    /// `.txt` (Shortcut / Action Button / Files), a Share Sheet hand-off, a
-    /// `skim://read?text=…` deep link, and future extracted article text. Set to
-    /// a brisk 400 to match Joe's real cruising speed: starting slower makes the
-    /// tool feel like it's wasting his time, and he can always thumb down. Equal
-    /// to `cruise` by design so the import surface and a cold start agree; kept
-    /// as its own name so the import default can diverge later without touching
-    /// `cruise`. Only ever a *starting* speed — the live vertical slide still
-    /// snaps within `allCases`.
-    public static let imported = SpeedBand(wpm: 400)
+    /// The real, in-range detent nearest an arbitrary WPM. Resolves a stored
+    /// preference or a computed ramp target onto the speed grid no matter how it
+    /// was produced: clamps into `[minWPM, maxWPM]` first (so an absurdly high or
+    /// sub-floor value lands safely), then snaps to the closest band so the gauge's
+    /// detents stay valid.
+    public static func nearest(to wpm: Int) -> SpeedBand {
+        let clamped = min(max(wpm, minWPM), maxWPM)
+        return allCases.min(by: { abs($0.wpm - clamped) < abs($1.wpm - clamped) })
+            ?? SpeedBand(wpm: clamped)
+    }
 
     /// Next faster speed, clamped at `maxWPM`.
     public func faster() -> SpeedBand { SpeedBand(wpm: min(Self.maxWPM, wpm + Self.step)) }
