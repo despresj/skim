@@ -37,7 +37,12 @@ final class ReaderViewModel {
     /// but 400 is just today's default — change this and every auto-start follows.
     var defaultWpm: Int = UserDefaults.standard.object(forKey: "skim.defaultWpm") as? Int
         ?? SpeedBand.cruise.wpm {
-        didSet { UserDefaults.standard.set(defaultWpm, forKey: "skim.defaultWpm") }
+        didSet {
+            UserDefaults.standard.set(defaultWpm, forKey: "skim.defaultWpm")
+            // The "time at default" estimates are speed-relative, so a changed
+            // default speed invalidates every cached one.
+            readTimeCache.removeAll()
+        }
     }
 
     /// Whether a freshly loaded manual read begins streaming hands-free immediately
@@ -88,6 +93,13 @@ final class ReaderViewModel {
     private var rampTargetWpm: Int?
 
     private let haptics = Haptics()
+
+    /// In-memory memo of formatted "time at default" estimates, keyed by
+    /// `ReadItem.id`, so a list of recent reads doesn't re-tokenize each body every
+    /// time a card re-renders. Deliberately *not* observed — it's a pure render-time
+    /// cache, never UI state — and cleared whenever `defaultWpm` changes, since the
+    /// estimate is speed-relative.
+    @ObservationIgnored private var readTimeCache: [String: String] = [:]
 
     /// The local persistence store, shared with the Ideas panel. `nil` only if it
     /// failed to open — every store call is optional so reading never depends on it.
@@ -169,6 +181,13 @@ final class ReaderViewModel {
     /// stripped at tokenize time.
     var reviewText: String { ReadingContext.fullText(tokens) }
 
+    /// The current read's stored title, for prefilling an export's title card.
+    /// `nil` when nothing is loaded or no saved record backs the session.
+    var currentTitle: String? {
+        guard let store, let id = currentReadId, let item = try? store.readItem(id: id) else { return nil }
+        return item.title
+    }
+
     /// Reader context for an idea jotted right now: which read, the position, the
     /// speed, and a short phrase around the active word. Empty when nothing's
     /// loaded. Lets "word jitters here" be tied back to the exact spot later.
@@ -195,6 +214,30 @@ final class ReaderViewModel {
     /// background glow, dial, pivot letter, and progress bar all warm as you
     /// throttle up. Updates reactively whenever the band changes.
     var speedWarmth: Double { band.warmth }
+
+    // MARK: Read-time estimate ("time at default")
+
+    /// A compact estimated reading time for arbitrary text — the paste draft —
+    /// computed with Skim's real pacing (clause/sentence/paragraph/long-word
+    /// multipliers) at the configured default cruising speed, never a hardcoded
+    /// WPM. Returns `nil` for empty/whitespace text so the caller can hide the
+    /// label rather than show "0:00".
+    func readTimeEstimate(forText text: String) -> String? {
+        let tokens = Tokenizer.tokenize(text)
+        guard !tokens.isEmpty else { return nil }
+        return ReadTimeEstimate.compact(
+            ReadTimeEstimate.seconds(tokens: tokens, wpm: defaultCruisingWpm))
+    }
+
+    /// The same estimate for a stored read, memoized by id so the resume/recents
+    /// surfaces don't re-tokenize a body on every render. `nil` if the body
+    /// tokenizes to nothing.
+    func readTimeEstimate(for item: ReadItem) -> String? {
+        if let cached = readTimeCache[item.id] { return cached }
+        guard let estimate = readTimeEstimate(forText: item.body) else { return nil }
+        readTimeCache[item.id] = estimate
+        return estimate
+    }
 
     // MARK: Speed control
 
@@ -291,19 +334,17 @@ final class ReaderViewModel {
 
     /// The deep-link "just start reading" path: load text and hand straight off to
     /// hands-free cruise — no `.ready` pause, no thumb start. Text arriving from a
-    /// Shortcut, the Share Sheet, or the Action Button opens with the shared
-    /// auto-start ramp, gently accelerating up to the *configured default cruising
-    /// speed* (not a fixed import speed). Reuses `load` + `startReadingWithRamp` so
-    /// the start logic isn't duplicated, and leaves normal manual paste/input (which
-    /// routes through `load` alone, arming `.ready`) untouched. Empty text never
-    /// reaches here — the parser rejects it — but we guard so a non-`.ready` load is
-    /// a quiet no-op.
+    /// Shortcut, the Share Sheet, or the Action Button opens at the *configured
+    /// default cruising speed* (not the 300-wpm floor, and not a fixed import speed).
+    /// Reuses `load` + `startReadingWithRamp` so the start logic isn't duplicated, and
+    /// leaves normal manual paste/input (which routes through `load` alone, arming
+    /// `.ready`) untouched. Empty text never reaches here — the parser rejects it —
+    /// but we guard so a non-`.ready` load is a quiet no-op.
     private func loadAndCruise(_ text: String, source: ReadSource, sourcePath: String? = nil) {
         load(text, source: source, sourcePath: sourcePath)
         guard state == .ready else { return }
-        // Open gently: begin slow and accelerate up to the user's default cruising
-        // speed, instead of snapping straight to full pace. The ramp banks the
-        // target speed onto the record, so this no longer needs its own `saveProgress`.
+        // Open straight at the user's default cruising speed (banked onto the record),
+        // so the read — and the gauge — start where they should, not at the floor.
         startReadingWithRamp(targetWpm: defaultCruisingWpm)
     }
 
@@ -374,9 +415,8 @@ final class ReaderViewModel {
         // set their own band via `loadAndCruise` after this returns.
         if source == .manual { band = defaultCruisingBand }
         recordLoadedRead(text, source: source, sourcePath: sourcePath)
-        // Honor the "start in cruise" preference for manual loads — and, like the
-        // imports, open with the gentle ramp up to the default cruising speed rather
-        // than snapping to full pace. Imports drive their own ramp; an empty load
+        // Honor the "start in cruise" preference for manual loads — open hands-free
+        // at the default cruising speed (same entry path as imports). An empty load
         // stays idle.
         if source == .manual, startInCruise, state == .ready {
             startReadingWithRamp(targetWpm: defaultCruisingWpm)
@@ -415,10 +455,10 @@ final class ReaderViewModel {
 
     /// "Read Again" from the end-of-read review: jump back to the top and start
     /// streaming hands-free — explicit imported text earns an immediate On start.
-    /// Like the imports, it opens with the shared gentle ramp up to the user's
-    /// default cruising speed rather than snapping to full pace. The reading hand and
-    /// UI style are untouched. Re-entrant: each tap cancels any running loop/ramp
-    /// first, so repeated taps can't stack playback tasks. A no-op with nothing loaded.
+    /// Like the imports, it opens at the user's default cruising speed. The reading
+    /// hand and UI style are untouched. Re-entrant: each tap cancels any running
+    /// loop/ramp first, so repeated taps can't stack playback tasks. A no-op with
+    /// nothing loaded.
     func readAgain() {
         guard hasText else { return }
         cancelPlayback()
@@ -439,6 +479,20 @@ final class ReaderViewModel {
         item.lastWpm = persistedWpm
         item.updatedAt = Date()
         try? store.upsertReadItem(item)
+    }
+
+    /// When the user *starts reading* a read that's reopened from a completed state
+    /// (a finished item tapped in Recents, opened at index 0 by `resume`), flip it
+    /// back to an active session at the beginning. Reading start — not the mere
+    /// reopen — is the moment a completed read becomes "in progress" again, so the
+    /// completion history survives a peek but a real re-read tracks from 0. Detected
+    /// from the persisted status, which is `completed` only in exactly this case
+    /// (a finished read finishes into `.completed`, never `.ready`/`.paused`), so the
+    /// current index is always 0 here. A no-op for any normal active read.
+    private func reactivateIfCompleted() {
+        guard let store, let id = currentReadId,
+              let item = try? store.readItem(id: id), item.status == .completed else { return }
+        reactivateRead()
     }
 
     /// Drop the loaded text and return to the calm empty state. Backs the reader's
@@ -486,8 +540,10 @@ final class ReaderViewModel {
     /// the reader's state, so a flick while paused stays paused, while reading
     /// keeps reading, and while cruising keeps cruising.
     func rewind12Words() {
+        guard !tokens.isEmpty else { return }
         let from = currentIndex
-        currentIndex = max(0, currentIndex - navigationJumpWords)
+        currentIndex = ReadingNavigation.jumpTarget(
+            from: currentIndex, by: -navigationJumpWords, count: tokens.count)
         emitNavFlash(.back, moved: from - currentIndex)
         haptics.tick(.rewind)
         restartPlaybackIfPlaying()
@@ -497,7 +553,8 @@ final class ReaderViewModel {
     func forward12Words() {
         guard !tokens.isEmpty else { return }
         let from = currentIndex
-        currentIndex = min(tokens.count - 1, currentIndex + navigationJumpWords)
+        currentIndex = ReadingNavigation.jumpTarget(
+            from: currentIndex, by: navigationJumpWords, count: tokens.count)
         emitNavFlash(.forward, moved: currentIndex - from)
         haptics.tick(.forward)
         restartPlaybackIfPlaying()
@@ -606,31 +663,37 @@ final class ReaderViewModel {
     // MARK: Auto-start ramp (gentle acceleration)
 
     /// Shared auto-start for every explicit "read this now" path: arm the already
-    /// loaded text in hands-free On mode but open *gently* — begin at `fromWpm` and
-    /// smoothly accelerate to `targetWpm` over `duration` seconds, so the first
-    /// second orients instead of slapping you with full speed. The speed gauge and
-    /// warm color system follow the live ramping band for free.
+    /// loaded text in hands-free On mode at the configured cruising speed.
+    ///
+    /// By default a read *opens at `targetWpm`* (the user's default cruising speed) —
+    /// no slow ramp from the floor — so every entry point (clipboard cruise, deep
+    /// link, file import, "Read Again") starts at the speed the gauge should show,
+    /// not at the 300-wpm minimum. A gentle slow-start is still available by passing
+    /// an explicit `fromWpm` below the target, in which case the band begins there
+    /// and smoothly accelerates to `targetWpm` over `duration` seconds.
     ///
     /// Requires text armed at `.ready` (a no-op otherwise). Any manual speed change,
-    /// pause, or scrub cancels the ramp and leaves the user in control at whatever
-    /// speed they chose; a rewind/forward flick keeps ramping smoothly underneath.
+    /// pause, or scrub cancels a running ramp and leaves the user in control at
+    /// whatever speed they chose; a rewind/forward flick keeps ramping underneath.
     private func startReadingWithRamp(targetWpm: Int,
-                                      fromWpm: Int = SpeedBand.minWPM,
+                                      fromWpm: Int? = nil,
                                       duration: Double = 2.0) {
         guard state == .ready else { return }
         cancelRamp()
 
         // Resolve both ends onto real, in-range detents. `nearest` clamps a target
         // that's somehow out of range (preference too high/low) safely to the
-        // max/floor, so no call site can push the ramp off the speed grid. The floor
-        // is never above the target, so `isClimbing` correctly treats a floor-level
-        // target as a no-op.
+        // max/floor, so no call site can push the ramp off the speed grid. With no
+        // explicit floor, `from` resolves to the target itself, so the read opens at
+        // the cruising speed and `isClimbing` is false (no ramp). The floor is never
+        // above the target, so a floor-level target is correctly a no-op too.
         let target = SpeedBand.nearest(to: targetWpm)
-        let from = SpeedBand.nearest(to: min(fromWpm, target.wpm))
+        let from = SpeedBand.nearest(to: min(fromWpm ?? target.wpm, target.wpm))
         let ramp = SpeedRamp(fromWPM: from.wpm, toWPM: target.wpm, duration: duration)
 
-        // Remember the destination so a save mid-ramp banks the cruising speed, not
-        // the slow opening one. Open at the gentle starting band, then hand off.
+        // Remember the destination so a save banks the cruising speed (matters only
+        // for an opt-in slow-start, where `from` < `target`). Open at `from` — which
+        // is the target itself in the default no-ramp case — then hand off.
         rampTargetWpm = target.wpm
         band = from
         // Bank the intended speed onto the record up front (persistedWpm == target),
@@ -683,6 +746,7 @@ final class ReaderViewModel {
     /// `paused` (resume where you stopped).
     func enterCruise() {
         guard state == .paused || state == .ready else { return }
+        reactivateIfCompleted()
         mode = .cruise
         state = .cruisePlaying
         haptics.tick(.cruiseOn)
@@ -719,6 +783,7 @@ final class ReaderViewModel {
     /// call from a resumable state actually starts the engine.
     func startHolding() {
         guard state == .ready || state == .paused else { return }
+        reactivateIfCompleted()
         mode = .precisionHeld
         state = .precisionHeld
         haptics.prepare()
@@ -785,12 +850,21 @@ final class ReaderViewModel {
         recents = (try? store?.recentReads(limit: 20)) ?? []
     }
 
-    /// Open a stored read where it was left off: restore its body, position, speed,
-    /// and reading hand, and arm the reader at that spot. Normally a deliberate
-    /// resume waits for the thumb or a double-tap, but the global "start in cruise"
-    /// preference applies to *every* entry into reading — so when it's on, a resume
-    /// streams hands-free from the saved spot too. Reuses the existing record. A
-    /// no-op if the body has gone empty.
+    /// Open a stored read: restore its body, speed, and reading hand, and arm the
+    /// reader. Where it opens depends on whether the read is *finished*:
+    ///
+    /// - **Unfinished** → resume from the saved token (existing behavior). The touch
+    ///   is banked so the read floats to the top of recents.
+    /// - **Finished** → reopen at the *beginning* ("read again"), not the end screen
+    ///   — tapping a completed item almost always means "read this again," not "show
+    ///   me the finish line." The completed record is left untouched on open (so the
+    ///   history isn't erased just by peeking); it reactivates from 0 only once the
+    ///   user actually starts reading again (see `reactivateIfCompleted`).
+    ///
+    /// Normally a deliberate resume waits for the thumb or a double-tap, but the
+    /// global "start in cruise" preference applies to every entry into reading, so
+    /// when it's on a resume streams hands-free too. Reuses the existing record (no
+    /// duplicates). A no-op if the body has gone empty.
     func resume(_ item: ReadItem) {
         cancelPlayback()
         let toks = Tokenizer.tokenize(item.body)
@@ -800,12 +874,18 @@ final class ReaderViewModel {
         loadedText = item.body
         tokens = toks
         currentReadId = item.id
-        currentIndex = min(max(0, item.lastTokenIndex), toks.count - 1)
+        let finished = item.status == .completed || item.completedAt != nil
+            || item.lastTokenIndex >= toks.count - 1
+        // Finished reads reopen at the top; unfinished resume from their saved spot.
+        currentIndex = finished ? 0 : min(max(0, item.lastTokenIndex), toks.count - 1)
         band = SpeedBand(wpm: item.lastWpm)
         isLeftHanded = (item.readingHand == "left")
         state = .ready
-        // Touch updated_at so the resumed read floats to the top of recents.
-        saveProgress()
+        // Unfinished: bank the touch so the read floats to the top of recents.
+        // Finished: leave the completed record exactly as-is until the user actually
+        // starts reading again, so merely reopening never rewrites its position or
+        // erases the completion.
+        if !finished { saveProgress() }
         if startInCruise { enterCruise() }
     }
 

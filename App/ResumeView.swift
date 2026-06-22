@@ -76,6 +76,24 @@ struct ResumeView: View {
         renaming = item
     }
 
+    /// The hero card's metadata line — "7% · 1:42 · File" — built as one mixed-color
+    /// `Text` so the estimated read time can ride the warm accent (time is the
+    /// prominent metric) while progress and source stay quiet. The estimate is
+    /// memoized in the view model, so this stays cheap across re-renders.
+    private func resumeMetadata(_ item: ReadItem) -> Text {
+        let muted = Color.readingMuted
+        let sep = Text("  ·  ").foregroundColor(muted)
+        let lead = item.status == .completed
+            ? Text("Finished").foregroundColor(muted)
+            : Text("\(Int((ReadProgress.fraction(item) * 100).rounded()))%")
+                .foregroundColor(Color.readingForeground)
+        var line = lead
+        if let estimate = viewModel.readTimeEstimate(for: item) {
+            line = line + sep + Text(estimate).foregroundColor(Color.readingAccent)
+        }
+        return line + sep + Text(ReadProgress.sourceLabel(item.source)).foregroundColor(muted)
+    }
+
     // MARK: Header
 
     private var header: some View {
@@ -108,9 +126,8 @@ struct ResumeView: View {
                 ProgressBar(fraction: ReadProgress.fraction(candidate))
 
                 HStack(spacing: 6) {
-                    Text(ReadProgress.subtitle(candidate))
+                    resumeMetadata(candidate)
                         .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color.readingMuted)
                     Spacer()
                     Label("Resume", systemImage: "play.fill")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -150,7 +167,7 @@ struct ResumeView: View {
                     ArmedDeleteButton { viewModel.deleteRead(item) }
 
                     Button { viewModel.resume(item) } label: {
-                        RecentRow(item: item)
+                        RecentRow(item: item, estimate: viewModel.readTimeEstimate(for: item))
                     }
                     .buttonStyle(.plain)
                 }
@@ -181,9 +198,13 @@ struct ResumeView: View {
     }
 }
 
-/// One recent read in the list: title, then a muted progress + source line.
+/// One recent read in the list: title, then a muted "progress · time · source"
+/// line. Time replaces word count as the at-a-glance unit.
 private struct RecentRow: View {
     let item: ReadItem
+    /// Memoized "time at default" estimate, passed in from the parent (which owns
+    /// the view model and its cache). `nil` drops the time segment cleanly.
+    let estimate: String?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -192,7 +213,7 @@ private struct RecentRow: View {
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(Color.readingForeground)
                     .lineLimit(1)
-                Text(ReadProgress.subtitle(item))
+                Text(ReadProgress.subtitle(item, estimate: estimate))
                     .font(.system(size: 12, design: .rounded))
                     .foregroundStyle(Color.readingMuted)
             }
@@ -280,18 +301,21 @@ enum ReadProgress {
         return Double(item.lastTokenIndex) / Double(item.wordCount - 1)
     }
 
-    /// "42% · 1,920 words · Pasted" — completed reads read as "Finished".
-    static func subtitle(_ item: ReadItem) -> String {
-        let words = "\(item.wordCount.formatted()) words"
-        let origin = sourceLabel(item.source)
-        if item.status == .completed {
-            return "Finished  ·  \(words)  ·  \(origin)"
-        }
-        let pct = Int((fraction(item) * 100).rounded())
-        return "\(pct)%  ·  \(words)  ·  \(origin)"
+    /// "7% · 1:42 · File" — progress first, then the estimated read time at the
+    /// configured speed, then the source. Completed reads lead with "Finished".
+    /// Word count is gone from the visible metadata; time is the user-facing unit.
+    /// The `estimate` is supplied by the caller (it depends on the default speed and
+    /// is memoized in the view model); when absent the time segment is simply omitted.
+    static func subtitle(_ item: ReadItem, estimate: String?) -> String {
+        let lead = item.status == .completed
+            ? "Finished"
+            : "\(Int((fraction(item) * 100).rounded()))%"
+        return [lead, estimate, sourceLabel(item.source)]
+            .compactMap { $0 }
+            .joined(separator: "  ·  ")
     }
 
-    private static func sourceLabel(_ source: ReadSource) -> String {
+    static func sourceLabel(_ source: ReadSource) -> String {
         switch source {
         case .file:       return "File"
         case .shortcut:   return "Shortcut"

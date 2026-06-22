@@ -108,41 +108,83 @@ extension Color {
     }
 }
 
-/// Speed-responsive warmth: soft, diffuse amber light pooled around the gauge on
-/// the reading-hand edge. Its hue rides the speed (muted amber cruising → richer
-/// orange-gold at a blast) and it swells as the band climbs — ambient energy in
-/// the air, never a panel or an alarm. Two overlaid radial blooms keep the falloff
-/// atmospheric rather than banded. Layered above the base `ReadingCanvas`, so the
-/// deep, premium background still dominates and the main word keeps its contrast.
+/// Speed-responsive warmth: a tight amber *instrument aura* that gently lights the
+/// speed gauge in the reading-hand corner and fades fast into the dark canvas — a
+/// localized glow that belongs to the gauge, not a side panel or an edge wash. Its
+/// hue rides the speed (muted amber cruising → richer orange-gold at a blast) and it
+/// swells a little as the band climbs; it stays subtle while actively reading and a
+/// touch more present when paused or while the dial is being turned.
+///
+/// Two layers, back to front, so the warmth frames the word instead of competing:
+///   1. A subtle vignette that lets the edges settle into warm black, deepening the
+///      middle and keeping the focal word in a clean, dark pocket.
+///   2. A tight aura centered on the gauge — radius only modestly past the
+///      instrument, opacity front-loaded so it's nearly gone before the center word.
+/// Layered above the base `ReadingCanvas`; the deep background still dominates and
+/// the main word keeps its contrast (the glow lives away from it; the vignette only
+/// darkens behind it).
 struct ReadingWarmth: View {
     let warmth: Double
     let leftHanded: Bool
+    /// A touch brighter when the reader is at rest or the dial is being turned (so
+    /// the instrument reads as "ready / adjusting"); subtler while actively reading,
+    /// where the word owns the surface. Defaults off.
+    var emphasized: Bool = false
 
     var body: some View {
         // Hue rides the speed, in the same amber family as the gauge: a muted
         // amber while cruising, warming toward a richer orange-gold at a blast —
         // never red, never an alarm.
         let hue = Color.readingAccent(warmth: warmth)
-        // Barely-there when calm; warm and present, never loud, at full tilt.
-        let peak = 0.045 + warmth * 0.13
 
-        // Two overlaid radial blooms pooled on the reading-hand edge — exactly
-        // where the gauge is mounted — so the warmth reads as ambient light
-        // gathering around the instrument, not a vertical panel pasted to the side.
-        // The broader, fainter wash softens the falloff so nothing looks banded.
-        let edgeX: CGFloat = leftHanded ? 0 : 1
+        // The reading-hand edge; mirror x for a left-hand grip so the aura follows
+        // the gauge to whichever side it lives on.
+        func atEdge(_ x: CGFloat) -> CGFloat { leftHanded ? 1 - x : x }
+
+        // Restrained aura strength: subtle while reading, a little more present when
+        // paused / adjusting, warming gently with speed — an instrument glow, never
+        // a flare.
+        let auraPeak = (emphasized ? 0.085 : 0.05) + warmth * 0.06
+
+        // Vignette ink — warm near-black in dark; a faint, low-alpha warm gray in
+        // light so the frame stays a whisper against paper, never a smudge.
+        let shade = Color(uiColor: UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.016, green: 0.014, blue: 0.010, alpha: 1.0)
+                : UIColor(red: 0.38, green: 0.34, blue: 0.28, alpha: 0.12)
+        })
+
         return ZStack {
+            // 1 · Vignette, beneath the warmth so the amber still reads warm at the
+            //     lower edge instead of being muted by the frame. Clear through the
+            //     center (the word's pocket), falling to warm black at the edges.
             RadialGradient(
-                colors: [hue.opacity(peak), hue.opacity(peak * 0.3), .clear],
-                center: UnitPoint(x: edgeX, y: 0.5),
-                startRadius: 20,
-                endRadius: 720
+                gradient: Gradient(stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: .clear, location: 0.5),
+                    .init(color: shade.opacity(0.45), location: 0.82),
+                    .init(color: shade.opacity(0.85), location: 1.0),
+                ]),
+                center: UnitPoint(x: 0.5, y: 0.46),
+                startRadius: 120,
+                endRadius: 560
             )
+
+            // 2 · Tight instrument aura centered on the gauge (mid-height, near the
+            //     reading edge). A small radius — only modestly past the instrument —
+            //     with opacity front-loaded into the inner stops, so the gauge glows
+            //     while the rest of the surface, and the focal word off to the side,
+            //     stay calm and dark. Follows the gauge for a left-hand grip.
             RadialGradient(
-                colors: [hue.opacity(peak * 0.55), .clear],
-                center: UnitPoint(x: leftHanded ? 0.18 : 0.82, y: 0.58),
-                startRadius: 80,
-                endRadius: 540
+                gradient: Gradient(stops: [
+                    .init(color: hue.opacity(auraPeak), location: 0.0),
+                    .init(color: hue.opacity(auraPeak * 0.5), location: 0.28),
+                    .init(color: hue.opacity(auraPeak * 0.16), location: 0.58),
+                    .init(color: .clear, location: 1.0),
+                ]),
+                center: UnitPoint(x: atEdge(0.92), y: 0.5),
+                startRadius: 6,
+                endRadius: 150
             )
         }
         .ignoresSafeArea()
@@ -156,7 +198,7 @@ struct ReadingCanvas: View {
     var body: some View {
         let top = Color(uiColor: UIColor { trait in
             trait.userInterfaceStyle == .dark
-                ? UIColor(red: 0.161, green: 0.141, blue: 0.110, alpha: 1)
+                ? UIColor(red: 0.125, green: 0.108, blue: 0.082, alpha: 1)
                 : UIColor(red: 1.0, green: 0.980, blue: 0.949, alpha: 1)
         })
         LinearGradient(

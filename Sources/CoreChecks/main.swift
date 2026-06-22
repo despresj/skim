@@ -21,6 +21,19 @@ func expectEqual<T: Equatable>(_ actual: T, _ expected: T, _ message: String) {
     expect(actual == expected, "\(message)  (got \(actual), want \(expected))")
 }
 
+/// Float comparison with a small tolerance, for values built by accumulating sums
+/// where exact `==` would trip over binary-float rounding.
+@MainActor
+func expectClose(_ actual: Double, _ expected: Double, _ message: String, tol: Double = 1e-9) {
+    expect(abs(actual - expected) < tol, "\(message)  (got \(actual), want ~\(expected))")
+}
+
+@MainActor
+func expectClose(_ actual: [Double], _ expected: [Double], _ message: String, tol: Double = 1e-9) {
+    let ok = actual.count == expected.count && zip(actual, expected).allSatisfy { abs($0 - $1) < tol }
+    expect(ok, "\(message)  (got \(actual), want ~\(expected))")
+}
+
 print("Tokenizer")
 do {
     let t = Tokenizer.tokenize("the quick brown fox")
@@ -550,6 +563,195 @@ do {  // plain scope — these checks don't throw
     expect(huge.shift > 0, "an unfittable token shifts to reveal its start")
     let hugeLeft = anchor - (240 + 16) * (minF / base) + huge.shift
     expect(abs(hugeLeft - mL) < 0.5, "the shift lands the left edge exactly on the margin")
+}
+
+print("ExportSpec.formatted — m:ss labels")
+expectEqual(ExportSpec.formatted(0), "0:00", "zero -> 0:00")
+expectEqual(ExportSpec.formatted(9), "0:09", "single-digit seconds zero-pad")
+expectEqual(ExportSpec.formatted(102), "1:42", "102s -> 1:42 (the spec's example)")
+expectEqual(ExportSpec.formatted(60), "1:00", "exactly a minute")
+expectEqual(ExportSpec.formatted(599.4), "9:59", "rounds to nearest second")
+expectEqual(ExportSpec.formatted(-5), "0:00", "negative clamps to 0:00")
+
+print("ExportTimeline — pacing-driven video layout")
+do {
+    // Four words at 600 wpm = 0.1s each (multiplier 1.0), except the last word,
+    // which is the paragraph end and earns the 2.8× breath -> 0.28s. The export
+    // honors the real reader's rhythm exactly.
+    let tokens = Tokenizer.tokenize("alpha beta gamma delta")
+    let tl = ExportTimeline(tokens: tokens, wpm: 600, titleDuration: 0, endDuration: 1.8)
+    expectClose(tl.tokenDurations, [0.1, 0.1, 0.1, 0.28], "plain words hold 60/wpm; the paragraph-final word gets the 2.8× breath")
+    expectClose(tl.tokenStarts, [0.0, 0.1, 0.2, 0.3], "token starts are the running sum")
+    expectClose(tl.readingDuration, 0.58, "reading length is the sum of token durations")
+    expectClose(tl.totalDuration, 0.58 + 1.8, "no title -> reading + end card only")
+    // Frame math: 2.38s at 30fps = 71.4 -> 71 frames.
+    expectEqual(tl.totalFrames, 71, "totalFrames rounds totalDuration * fps")
+}
+do {
+    // Pacing honors the real tokenizer rhythm: a period doubles the breath.
+    let tokens = Tokenizer.tokenize("alpha beta. gamma delta")
+    let tl = ExportTimeline(tokens: tokens, wpm: 600, titleDuration: 1.8, endDuration: 1.8)
+    expectClose(tl.tokenDurations[1], 0.2, "sentence-ending word gets the 2.0× pause")
+    expectClose(tl.readingStart, 1.8, "reading section starts after the title card")
+    // Absolute-time phase lookup across all three sections.
+    expectEqual(tl.phase(atTime: 0.5), .title, "early time lands on the title card")
+    expectEqual(tl.phase(atTime: 1.8), .reading(tokenIndex: 0), "reading begins exactly at titleDuration")
+    // rt = 0.25s into reading: durations 0.1, 0.2, 0.1, 0.1 -> starts 0, 0.1, 0.3, 0.4.
+    // 0.25 falls in token 1's window [0.1, 0.3).
+    expectEqual(tl.phase(atTime: 1.8 + 0.25), .reading(tokenIndex: 1), "mid-reading resolves the active token")
+    expectEqual(tl.phase(atTime: 999), .end, "past the end -> end card")
+}
+do {
+    // No title card means reading starts at t=0 (title phase never returned).
+    let tokens = Tokenizer.tokenize("one two three four five")
+    let tl = ExportTimeline(tokens: tokens, wpm: 300, titleDuration: 0, endDuration: 1.8)
+    expectEqual(tl.phase(atTime: 0), .reading(tokenIndex: 0), "no title -> first word at t=0")
+    expectEqual(tl.phase(atTime: -1), .reading(tokenIndex: 0), "negative time clamps to the first word")
+    // Last frame of the reading section still resolves to the final token, not end.
+    let lastReading = tl.readingDuration - 0.001
+    expectEqual(tl.phase(atTime: lastReading), .reading(tokenIndex: tokens.count - 1),
+                "just before the reading end is still the last word")
+}
+
+print("ReadingNavigation — rail flick clamping")
+do {
+    // A normal flick moves the full step in either direction.
+    expectEqual(ReadingNavigation.jumpTarget(from: 40, by: 12, count: 100), 52, "forward jump adds the step")
+    expectEqual(ReadingNavigation.jumpTarget(from: 40, by: -12, count: 100), 28, "rewind jump subtracts the step")
+    // Edges never overshoot: a rewind near the top pins at 0, a forward near the
+    // end pins at the last token — the cursor is never negative or past the end.
+    expectEqual(ReadingNavigation.jumpTarget(from: 5, by: -12, count: 100), 0, "rewind past the start clamps to 0")
+    expectEqual(ReadingNavigation.jumpTarget(from: 95, by: 12, count: 100), 99, "forward past the end clamps to count-1")
+    expectEqual(ReadingNavigation.jumpTarget(from: 0, by: -12, count: 100), 0, "rewind at the very start stays at 0")
+    expectEqual(ReadingNavigation.jumpTarget(from: 99, by: 12, count: 100), 99, "forward at the very end stays put")
+    // A single-token read can't move; an empty read pins at 0 (safe no-op).
+    expectEqual(ReadingNavigation.jumpTarget(from: 0, by: 12, count: 1), 0, "single token can't move")
+    expectEqual(ReadingNavigation.jumpTarget(from: 0, by: -12, count: 0), 0, "empty read stays at 0")
+}
+
+print("ReaderGestures — zone resolution (both reading hands)")
+do {  // plain scope — these checks don't throw
+    // A 390pt screen with the production 0.42 rail fraction: rail spans 163.8pt on
+    // the reading-hand edge, the rest is bare canvas. The zones must MIRROR exactly
+    // between hands — same widths, opposite edges — and never overlap.
+    let W = 390.0, cf = 0.42
+    func zone(_ x: Double, left: Bool) -> GestureZone {
+        ReaderGestures.zone(touchX: x, width: W, controlFraction: cf, leftHanded: left)
+    }
+    // Right-handed: rail hugs the trailing (right) edge.
+    expectEqual(zone(10, left: false), .canvas, "right-hand: far-left touch is canvas")
+    expectEqual(zone(195, left: false), .canvas, "right-hand: center touch is canvas")
+    expectEqual(zone(380, left: false), .rail, "right-hand: far-right touch is the rail")
+    expectEqual(zone(W * (1 - cf) + 1, left: false), .rail, "right-hand: just inside the right rail edge is rail")
+    expectEqual(zone(W * (1 - cf) - 1, left: false), .canvas, "right-hand: just outside the rail is canvas")
+    // Left-handed: rail hugs the leading (left) edge — the perfect mirror.
+    expectEqual(zone(10, left: true), .rail, "left-hand: far-left touch is the rail")
+    expectEqual(zone(195, left: true), .canvas, "left-hand: center touch is canvas")
+    expectEqual(zone(380, left: true), .canvas, "left-hand: far-right touch is canvas")
+    expectEqual(zone(W * cf - 1, left: true), .rail, "left-hand: just inside the left rail edge is rail")
+    expectEqual(zone(W * cf + 1, left: true), .canvas, "left-hand: just outside the rail is canvas")
+    // Symmetry: a point and its mirror land in matching zones across the two hands.
+    for x in stride(from: 5.0, through: 385.0, by: 10.0) {
+        let right = zone(x, left: false)
+        let mirrored = zone(W - x, left: true)
+        expectEqual(right, mirrored, "zone at x=\(x) mirrors its left-hand counterpart")
+    }
+    expectEqual(ReaderGestures.zone(touchX: 100, width: 0, controlFraction: cf, leftHanded: false),
+                .canvas, "degenerate zero-width surface is all canvas")
+}
+
+print("ReaderGestures — global hold-to-read (anywhere on the surface)")
+do {  // plain scope — these checks don't throw
+    // Press-and-hold starts a precision read from a resting state, no matter where on
+    // the surface it began — the model takes no zone, so left/center/right/word/context
+    // are all identical. Mid-cruise it's a no-op (words already stream); mid-hold and
+    // the idle/completed surfaces are inert.
+    expectEqual(ReaderGestures.holdIntent(startState: .ready), .beginPrecisionRead, "hold from ready -> precision read")
+    expectEqual(ReaderGestures.holdIntent(startState: .paused), .beginPrecisionRead, "hold from paused -> precision read")
+    expectEqual(ReaderGestures.holdIntent(startState: .cruisePlaying), .none, "hold mid-cruise -> no precision read")
+    expectEqual(ReaderGestures.holdIntent(startState: .precisionHeld), .none, "hold while already holding -> no-op")
+    expectEqual(ReaderGestures.holdIntent(startState: .idle), .none, "hold on the idle surface -> no-op")
+    expectEqual(ReaderGestures.holdIntent(startState: .completed), .none, "hold on the review screen -> no-op")
+}
+
+print("ReaderGestures — global tap semantics (symmetric, side-independent)")
+do {  // plain scope — these checks don't throw
+    // Double tap toggles cruise from any resting/cruising state; single tap is the
+    // brake and ONLY does something while cruising. These hold for any surface point,
+    // either hand — the model takes no side/zone argument, so symmetry is structural.
+    expectEqual(ReaderGestures.tapIntent(.double, state: .ready), .toggleCruise, "double tap at ready -> enter cruise")
+    expectEqual(ReaderGestures.tapIntent(.double, state: .paused), .toggleCruise, "double tap at paused -> resume cruise")
+    expectEqual(ReaderGestures.tapIntent(.double, state: .cruisePlaying), .toggleCruise, "double tap while cruising -> exit cruise")
+    expectEqual(ReaderGestures.tapIntent(.single, state: .cruisePlaying), .pauseCruise, "single tap while cruising -> brake")
+    expectEqual(ReaderGestures.tapIntent(.single, state: .ready), .none, "single tap at rest -> no-op (no accidental start)")
+    expectEqual(ReaderGestures.tapIntent(.single, state: .paused), .none, "single tap while paused -> no-op")
+    expectEqual(ReaderGestures.tapIntent(.double, state: .precisionHeld), .none, "double tap mid-hold -> no-op")
+    expectEqual(ReaderGestures.tapIntent(.double, state: .completed), .none, "double tap on the review screen -> no-op")
+    expectEqual(ReaderGestures.tapIntent(.single, state: .idle), .none, "single tap on the idle screen -> no-op")
+}
+
+print("ReaderGestures — rail-only steering (slide/flick, gated by start zone)")
+do {  // plain scope — these checks don't throw
+    // Steering is the rail's exclusive job: a slide/flick fires only when the gesture
+    // BEGAN in the rail zone and a live session is in progress. A canvas-started
+    // gesture never steers, so a hold-to-read out on the bare surface can't drift the
+    // speed or fire a skip.
+    expectEqual(ReaderGestures.steerIntent(.slide, startZone: .rail, startState: .cruisePlaying), .changeSpeed, "rail slide mid-cruise -> speed change")
+    expectEqual(ReaderGestures.steerIntent(.slide, startZone: .rail, startState: .ready), .changeSpeed, "rail slide at rest -> speed change")
+    expectEqual(ReaderGestures.steerIntent(.flickBack, startZone: .rail, startState: .cruisePlaying), .rewind, "rail flick ← mid-cruise -> rewind 12")
+    expectEqual(ReaderGestures.steerIntent(.flickForward, startZone: .rail, startState: .precisionHeld), .forward, "rail flick → while held -> forward 12")
+    // Canvas-started steering is always inert — the bare surface never steers.
+    for steer in [RailSteer.slide, .flickBack, .flickForward] {
+        for state in [ReaderState.ready, .paused, .cruisePlaying, .precisionHeld] {
+            expectEqual(ReaderGestures.steerIntent(steer, startZone: .canvas, startState: state), .none,
+                        "canvas-started \(steer) in \(state) never steers")
+        }
+    }
+    // No steer ever brakes or toggles cruise — taps own those alone.
+    for steer in [RailSteer.slide, .flickBack, .flickForward] {
+        for zone in [GestureZone.rail, .canvas] {
+            for state in [ReaderState.ready, .paused, .cruisePlaying, .precisionHeld] {
+                let intent = ReaderGestures.steerIntent(steer, startZone: zone, startState: state)
+                expect(intent != .toggleCruise && intent != .pauseCruise && intent != .beginPrecisionRead,
+                       "steer \(steer) (\(zone)) in \(state) never leaks a tap/hold action")
+            }
+        }
+    }
+    // No steering on the idle/completed surfaces, even from the rail.
+    expectEqual(ReaderGestures.steerIntent(.slide, startZone: .rail, startState: .idle), .none, "no steering on the idle surface")
+    expectEqual(ReaderGestures.steerIntent(.flickForward, startZone: .rail, startState: .completed), .none, "no steering on the review screen")
+}
+
+print("ReadTimeEstimate")
+do {
+    // Compact formatting bands.
+    expectEqual(ReadTimeEstimate.compact(42), "0:42", "under a minute → 0:SS")
+    expectEqual(ReadTimeEstimate.compact(5), "0:05", "pads single-digit seconds")
+    expectEqual(ReadTimeEstimate.compact(102), "1:42", "single minutes → m:ss")
+    expectEqual(ReadTimeEstimate.compact(599), "9:59", "just under ten minutes stays m:ss")
+    expectEqual(ReadTimeEstimate.compact(600), "10 min", "ten minutes → whole minutes")
+    expectEqual(ReadTimeEstimate.compact(1440), "24 min", "long reads → whole minutes")
+    expectEqual(ReadTimeEstimate.compact(0), "0:00", "empty read → 0:00")
+
+    // Seconds sum uses the real per-token multipliers, so it exceeds the flat
+    // word-count estimate for punctuated, multi-paragraph prose.
+    let tokens = Tokenizer.tokenize("the quick brown fox")
+    let paced = ReadTimeEstimate.seconds(tokens: tokens, wpm: 400)
+    let expectedPaced = tokens.reduce(0.0) { $0 + (60.0 / 400.0) * $1.delayMultiplier }
+    expectClose(paced, expectedPaced, "sums real paced durations")
+    expect(paced > 4.0 * (60.0 / 400.0),
+           "paced estimate exceeds the flat word-count estimate (trailing paragraph pause)")
+    expectEqual(ReadTimeEstimate.seconds(tokens: [], wpm: 400), 0, "empty stream → 0s")
+
+    // Speed scales the estimate inversely — a faster cruising speed ⇒ shorter time.
+    let slow = ReadTimeEstimate.seconds(tokens: tokens, wpm: 300)
+    let fast = ReadTimeEstimate.seconds(tokens: tokens, wpm: 600)
+    expect(slow > fast, "lower WPM yields a longer estimate")
+    expectClose(slow, fast * 2, "halving WPM doubles the estimate")
+
+    // End-to-end convenience path tokenizes then estimates.
+    expectClose(ReadTimeEstimate.seconds(text: "the quick brown fox", wpm: 400), paced,
+                "text convenience matches token-stream estimate")
 }
 
 print("")

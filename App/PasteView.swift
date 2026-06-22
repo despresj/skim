@@ -20,6 +20,10 @@ struct PasteView: View {
     @FocusState private var fieldFocused: Bool
     @State private var showingSettings = false
 
+    /// Compact "time at default" estimate for the current draft, recomputed when the
+    /// text settles. `nil` (pill hidden) until there's enough text to be meaningful.
+    @State private var estimate: String?
+
     var body: some View {
         ZStack {
             ReadingCanvas()
@@ -41,7 +45,7 @@ struct PasteView: View {
                 Spacer(minLength: 24)
                 Spacer(minLength: 24)
 
-                settingsTray
+                estimatePill
             }
             .padding(.horizontal, 28)
             .padding(.bottom, 8)
@@ -53,6 +57,12 @@ struct PasteView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView(viewModel: viewModel)
+        }
+        // Keep the read-time estimate in step with the field. Synchronous and once
+        // per actual edit (not per render), so the pill updates as you type/paste.
+        .onChange(of: draft, initial: true) {
+            let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+            estimate = trimmed.count >= 2 ? viewModel.readTimeEstimate(forText: draft) : nil
         }
         // Debounced auto-start: each keystroke/paste restarts this task, so we
         // only commit once the text has settled (~400ms). Pasted articles clear
@@ -138,58 +148,33 @@ struct PasteView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: Settings tray
+    // MARK: Read-time estimate pill
 
-    /// A calm bottom tray for set-once preferences, sitting under a hairline so it
-    /// reads as settings rather than part of the entry flow.
-    private var settingsTray: some View {
-        HandPicker(viewModel: viewModel)
-            .padding(.top, 18)
-            .padding(.horizontal, 4)
-            .overlay(alignment: .top) {
-                Rectangle()
-                    .fill(Color.readingBorder)
-                    .frame(height: 1)
-            }
-    }
-}
-
-/// Sets which hand drives the thumb rail. Mirrors the whole reading surface —
-/// rail, raised word, and speed control — to the chosen side. Set once; persists.
-private struct HandPicker: View {
-    let viewModel: ReaderViewModel
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text("Reading hand")
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .foregroundStyle(Color.readingMuted)
-            Spacer()
-            HStack(spacing: 4) {
-                segment(title: "Left", isLeft: true)
-                segment(title: "Right", isLeft: false)
-            }
-            .padding(3)
-            .background(Color.readingSurface, in: Capsule())
-            .overlay(Capsule().stroke(Color.readingBorder, lineWidth: 1))
-        }
-    }
-
-    private func segment(title: String, isLeft: Bool) -> some View {
-        let selected = viewModel.isLeftHanded == isLeft
-        return Button {
-            viewModel.isLeftHanded = isLeft
-        } label: {
-            Text(title)
+    /// A small, quiet pill that answers "how long will this take?" the moment there's
+    /// text to read — sitting in the calm bottom band the reading-hand picker used to
+    /// occupy (that's a set-once preference, so it lives in Settings now, not on the
+    /// launcher). Time, not word count, is the user-facing unit: a muted "Estimated
+    /// read" label with the time itself in the warm accent. Premium and unobtrusive —
+    /// never debug metadata — and absent entirely until the field has usable text.
+    @ViewBuilder
+    private var estimatePill: some View {
+        if let estimate {
+            HStack(spacing: 7) {
+                Image(systemName: "clock")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.readingMuted)
+                (
+                    Text("Estimated read  ·  ").foregroundColor(Color.readingMuted)
+                    + Text(estimate).foregroundColor(Color.readingAccent)
+                )
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(selected ? Color.readingOnAccent : Color.readingMuted)
-                .padding(.vertical, 6)
-                .padding(.horizontal, 16)
-                .background {
-                    if selected { Capsule().fill(Color.readingAccent) }
-                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .background(Color.readingSurface.opacity(0.6), in: Capsule())
+            .overlay(Capsule().stroke(Color.readingBorder, lineWidth: 1))
+            .transition(.opacity)
+            .animation(.easeOut(duration: 0.2), value: estimate)
         }
-        .buttonStyle(.plain)
-        .animation(.easeOut(duration: 0.15), value: selected)
     }
 }
