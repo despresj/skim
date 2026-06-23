@@ -162,6 +162,13 @@ final class ReaderViewModel {
     /// resumes update the list live; refreshed whenever `ResumeView` appears.
     private(set) var recents: [ReadItem] = []
 
+    /// True when the New Text (paste) screen was opened *from* Reads — so it can
+    /// show a "‹ Reads" back button that actually leads somewhere. Reads is the
+    /// home/root: New Text is a create-flow reached from it, and `returnToReads()`
+    /// goes back. False on a cold launch with no library (New Text is then the only
+    /// screen, with nothing behind it) and cleared the moment a read loads.
+    private(set) var canReturnToReads = false
+
     /// Set when something new was copied while a read was already loaded. Rather
     /// than silently swapping the text out from under you (and losing your place),
     /// the view surfaces a gentle "New text — read it?" chip and waits. Detected
@@ -457,6 +464,7 @@ final class ReaderViewModel {
         state = tokens.isEmpty ? .idle : .ready
         hasPendingClipboard = false
         pendingResume = nil
+        canReturnToReads = false
         // A fresh manual read opens at the user's default cruising speed; imports
         // set their own band via `loadAndCruise` after this returns.
         if source == .manual { band = defaultCruisingBand }
@@ -554,6 +562,7 @@ final class ReaderViewModel {
         currentReadId = nil
         state = .idle
         hasPendingClipboard = false
+        canReturnToReads = false
         // Back out to the library if there's anything to resume, else the paste
         // screen — so recents stay reachable, not just offered at cold launch.
         refreshPendingResume()
@@ -923,6 +932,7 @@ final class ReaderViewModel {
         guard !toks.isEmpty else { return }
         pendingResume = nil
         hasPendingClipboard = false
+        canReturnToReads = false
         loadedText = item.body
         tokens = toks
         currentReadId = item.id
@@ -941,11 +951,22 @@ final class ReaderViewModel {
         if startInCruise { enterCruise() }
     }
 
-    /// Dismiss the resume/library screen to read something new — drops to the paste
-    /// surface (and its clipboard pickup), leaving stored reads untouched on disk.
+    /// Dismiss the resume/library screen to read something new — drops to the New
+    /// Text (paste) surface (and its clipboard pickup), leaving stored reads
+    /// untouched on disk. We came *from* Reads, so New Text can offer a way back.
     func dismissResume() {
         pendingResume = nil
         state = .idle
+        canReturnToReads = true
+    }
+
+    /// Back out of the New Text create screen to the Reads home. Re-offers the most
+    /// recent resumable read, which routes `ContentView` back to the library. Only
+    /// invoked when `canReturnToReads` is set (we got here from Reads), so the
+    /// candidate is still on disk and the return always lands somewhere.
+    func returnToReads() {
+        refreshPendingResume()
+        canReturnToReads = false
     }
 
     /// Rename a stored read from the library. Empty/whitespace falls back to a

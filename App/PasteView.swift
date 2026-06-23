@@ -50,9 +50,21 @@ struct PasteView: View {
             .padding(.horizontal, 28)
             .padding(.bottom, 8)
         }
+        // Reads is home; New Text is a create-flow reached from it. When we arrived
+        // here from Reads, a "‹ Reads" button (the word, not a bare chevron, so the
+        // model is learnable) sits in the natural back slot, top-left — and the gear
+        // moves to the top-right so it never squats on the way back. On a cold launch
+        // with no library, there's nothing behind New Text, so the button is absent.
         .overlay(alignment: .topLeading) {
+            if viewModel.canReturnToReads {
+                backToReads
+                    .padding(.leading, 16)
+                    .padding(.top, 8)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
             SettingsGear { showingSettings = true }
-                .padding(.leading, 16)
+                .padding(.trailing, 16)
                 .padding(.top, 8)
         }
         .sheet(isPresented: $showingSettings) {
@@ -74,6 +86,30 @@ struct PasteView: View {
             guard !Task.isCancelled else { return }
             viewModel.load(draft)
         }
+    }
+
+    // MARK: Back to Reads
+
+    /// The escape hatch to home. Labelled "Reads" (not a lone chevron) so the user
+    /// learns the mental model — Reads is where your reading life lives; this screen
+    /// is just how a new read is born. Same quiet surface/hairline family as the gear.
+    private var backToReads: some View {
+        Button { viewModel.returnToReads() } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 15, weight: .semibold))
+                Text("Reads")
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+            }
+            .foregroundStyle(Color.readingMuted)
+            .padding(.leading, 11)
+            .padding(.trailing, 15)
+            .frame(height: 40)
+            .background(Color.readingSurface.opacity(0.6), in: Capsule())
+            .overlay(Capsule().stroke(Color.readingBorder, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Back to Reads")
     }
 
     // MARK: Header
