@@ -443,6 +443,19 @@ final class ReaderViewModel {
         lastPasteboardChange = UIPasteboard.general.changeCount
     }
 
+    /// Copy the full prose of the current read to the system pasteboard, so the
+    /// user can grab the text back out while parked. Re-banks the change count so
+    /// the foreground clipboard-watch never mistakes our own write for freshly
+    /// copied text. Fires a soft confirmation haptic; the view shows a brief
+    /// in-place checkmark. A no-op when there's nothing loaded.
+    func copyCurrentText() {
+        let text = reviewText
+        guard !text.isEmpty else { return }
+        UIPasteboard.general.string = text
+        lastPasteboardChange = UIPasteboard.general.changeCount
+        haptics.tick(.copy)
+    }
+
     private func readPasteboard() {
         if let text = UIPasteboard.general.string,
            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -967,6 +980,21 @@ final class ReaderViewModel {
     func returnToReads() {
         refreshPendingResume()
         canReturnToReads = false
+    }
+
+    /// Open the saved-reads shelf from a *standalone* New Text state (no back
+    /// stack). Leads with the most-recent read regardless of status, so the shelf
+    /// opens even when every saved read is finished — distinct from
+    /// `returnToReads()`, which is true back navigation to the shelf we came from.
+    /// Setting a non-nil `pendingResume` while idle routes `ContentView` to
+    /// `ResumeView` (the shelf), which renders finished items correctly and reopens
+    /// them at the top via the existing `resume(_:)` path. A no-op when the library
+    /// is empty. Creates no records.
+    func openRecents() {
+        guard let store, let recent = (try? store.recentReads(limit: 1))?.first else { return }
+        pendingResume = recent
+        canReturnToReads = false
+        state = .idle
     }
 
     /// Rename a stored read from the library. Empty/whitespace falls back to a

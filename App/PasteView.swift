@@ -56,11 +56,18 @@ struct PasteView: View {
         // moves to the top-right so it never squats on the way back. On a cold launch
         // with no library, there's nothing behind New Text, so the button is absent.
         .overlay(alignment: .topLeading) {
-            if viewModel.canReturnToReads {
-                backToReads
-                    .padding(.leading, 16)
-                    .padding(.top, 8)
+            // Two distinct intents share this slot: a true back affordance when we
+            // arrived from Reads, and standalone library access otherwise. Never
+            // collapse them — `Recents` opens the shelf, it doesn't navigate back.
+            Group {
+                if viewModel.canReturnToReads {
+                    backToReads
+                } else if !viewModel.recents.isEmpty {
+                    recentsPill
+                }
             }
+            .padding(.leading, 16)
+            .padding(.top, 8)
         }
         .overlay(alignment: .topTrailing) {
             SettingsGear { showingSettings = true }
@@ -70,6 +77,9 @@ struct PasteView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView(viewModel: viewModel)
         }
+        // Populate the library so the standalone `Recents` pill knows whether to
+        // show even on a cold launch that lands straight here.
+        .onAppear { viewModel.refreshRecents() }
         // Keep the read-time estimate in step with the field. Synchronous and once
         // per actual edit (not per render), so the pill updates as you type/paste.
         .onChange(of: draft, initial: true) {
@@ -110,6 +120,29 @@ struct PasteView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Back to Reads")
+    }
+
+    /// Standalone access to the saved-reads shelf, shown on a paste screen reached
+    /// directly (not from Reads) when the library is non-empty. A clock-list glyph
+    /// + "Recents" — deliberately not a back chevron, because this *opens* the
+    /// library rather than returning to a shelf we came from.
+    private var recentsPill: some View {
+        Button { viewModel.openRecents() } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("Recents")
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+            }
+            .foregroundStyle(Color.readingMuted)
+            .padding(.leading, 13)
+            .padding(.trailing, 15)
+            .frame(height: 40)
+            .background(Color.readingSurface.opacity(0.6), in: Capsule())
+            .overlay(Capsule().stroke(Color.readingBorder, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open recents")
     }
 
     // MARK: Header

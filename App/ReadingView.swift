@@ -14,6 +14,9 @@ struct ReadingView: View {
     /// Whether the Settings sheet is up.
     @State private var showingSettings = false
 
+    /// Briefly true after a copy, swapping the rail's copy glyph to a checkmark.
+    @State private var didCopy = false
+
     /// The Export Questions sheet for the current read, built lazily so it captures
     /// the read's text, title, and current WPM at the moment it opens.
     @State private var exportVM: ExportViewModel?
@@ -270,6 +273,9 @@ struct ReadingView: View {
                                   tint: .readingAccent, action: openExport)
                     utilityButton(icon: "lightbulb", label: "Add idea",
                                   tint: .readingMuted, action: openIdeas)
+                    utilityButton(icon: didCopy ? "checkmark" : "doc.on.doc",
+                                  label: "Copy text",
+                                  tint: .readingMuted, action: copyText)
                 }
                 .padding(.leading, 16)
                 Spacer(minLength: 0)
@@ -291,6 +297,7 @@ struct ReadingView: View {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(tint)
+                .contentTransition(.symbolEffect(.replace))
                 .frame(width: 44, height: 44)
                 .background(Color.readingSurface.opacity(0.6), in: Circle())
                 .overlay(Circle().stroke(Color.readingBorder, lineWidth: 1))
@@ -324,6 +331,18 @@ struct ReadingView: View {
         dbg("control tap: ideas")
         viewModel.overlayPresented()
         showingIdeas = true
+    }
+
+    /// Copy the full read text, then flash a brief in-place checkmark on the rail
+    /// button (the haptic fires inside the view model). Calm and local — no toast.
+    private func copyText() {
+        dbg("control tap: copy")
+        viewModel.copyCurrentText()
+        withAnimation(.easeOut(duration: 0.15)) { didCopy = true }
+        Task {
+            try? await Task.sleep(for: .seconds(1))
+            withAnimation(.easeOut(duration: 0.3)) { didCopy = false }
+        }
     }
 
     private func openSettings() {
