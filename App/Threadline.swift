@@ -1,6 +1,11 @@
 import SwiftUI
 import UIKit
 
+/// Width of the reserved right-edge rail that carries the recenter locator. The
+/// prose is inset by this much on the right so the floating button always sits in
+/// clear space beside the text column — never over readable words.
+private let threadlineLocatorRail: CGFloat = 44
+
 /// The paused "where am I" surface. When the reader rests, the foot of the screen
 /// shows a calm, natively scrollable window of the surrounding prose — the active
 /// word in amber, the current sentence in full ink, the rest dimmer — so you can
@@ -22,8 +27,6 @@ struct Threadline: View {
     /// Fixed viewport height — sized by the caller so the block never collides with
     /// the pivot word up top or the progress cluster below.
     let height: CGFloat
-    /// Which hand holds the gauge — places the locator on the open side.
-    let leftHanded: Bool
     /// A still press-and-hold crossed the read gate: start reading.
     let onHoldRead: () -> Void
     /// The read-initiating hold lifted: pause.
@@ -67,9 +70,12 @@ struct Threadline: View {
                 endPoint: .bottom
             )
         )
-        // The "back to word" locator: a small amber glyph on the open side, shown
-        // only once the active word has scrolled out of view. Tapping re-centers.
-        .overlay(alignment: leftHanded ? .bottomTrailing : .bottomLeading) {
+        // The "back to word" locator: a small amber glyph floating in the reserved
+        // right-edge rail (outside the prose column, clear of the gauge zone), shown
+        // only once the active word has scrolled out of view. It rides at the active
+        // line's resting height (~40% down) so it points back to where the word lives.
+        // Tapping re-centers.
+        .overlay(alignment: .trailing) {
             if offCenter {
                 Button(action: onRecenter) {
                     Image(systemName: "location.fill")
@@ -81,7 +87,10 @@ struct Threadline: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Back to current word")
-                .padding(10)
+                // Center the button inside the cleared rail, then lift it to the
+                // active word's rest line so it never sits over text or the gauge.
+                .frame(width: threadlineLocatorRail)
+                .offset(y: -height * 0.10)
                 .transition(.opacity)
             }
         }
@@ -144,6 +153,22 @@ private struct ThreadlineTextView: UIViewRepresentable {
         var didHoldRead = false
         /// Latched off-center value, so the SwiftUI binding only fires on a change.
         var reportedOffCenter = false
+        /// `systemUptime` of the last instant the band was scrolling under a finger
+        /// drag or its momentum. A hold landing within `scrollSettleGrace` of this is
+        /// read as "catch the glide", not "start reading" — so resting a thumb on a
+        /// coasting band stops it (the native feel) instead of tripping a read.
+        var lastScrollActivity: TimeInterval = -.greatestFiniteMagnitude
+        /// Window after the band last moved during which holds are swallowed. Spans
+        /// the long-press gate so a press that *halts* momentum can't then read.
+        static let scrollSettleGrace: TimeInterval = 0.25
+
+        /// True while the band is still under a finger or coasting, or settled only a
+        /// moment ago — the press is catching the glide, not asking to read.
+        private var isSettling: Bool {
+            guard let tv = textView else { return false }
+            if tv.isDragging || tv.isDecelerating { return true }
+            return ProcessInfo.processInfo.systemUptime - lastScrollActivity < Self.scrollSettleGrace
+        }
 
         // Closures refreshed every `updateUIView` so they never go stale.
         var onHoldRead: () -> Void = {}
@@ -158,6 +183,12 @@ private struct ThreadlineTextView: UIViewRepresentable {
         @objc func handleLongPress(_ gr: UILongPressGestureRecognizer) {
             switch gr.state {
             case .began:
+                // Ignore a hold that lands on a coasting (or just-settled) band: that
+                // press is there to arrest the momentum, not to start a read.
+                if isSettling {
+                    didHoldRead = false
+                    return
+                }
                 didHoldRead = true
                 onHoldRead()
             case .ended, .cancelled, .failed:
@@ -172,8 +203,25 @@ private struct ThreadlineTextView: UIViewRepresentable {
             onCruiseToggle()
         }
 
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            lastScrollActivity = ProcessInfo.processInfo.systemUptime
+        }
+
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            // Only user-driven motion arms the settle grace; a programmatic recenter
+            // animation (isDragging/isDecelerating both false) must not block a read.
+            if scrollView.isDragging || scrollView.isDecelerating {
+                lastScrollActivity = ProcessInfo.processInfo.systemUptime
+            }
             updateOffCenter()
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            lastScrollActivity = ProcessInfo.processInfo.systemUptime
+        }
+
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            lastScrollActivity = ProcessInfo.processInfo.systemUptime
         }
 
         /// Where the active word's vertical mid-point sits in the viewport (0 = top,
@@ -222,7 +270,9 @@ private struct ThreadlineTextView: UIViewRepresentable {
         textView.delaysContentTouches = false
         textView.backgroundColor = .clear
         textView.contentInsetAdjustmentBehavior = .never
-        textView.textContainerInset = UIEdgeInsets(top: 10, left: 0, bottom: 10, right: 0)
+        // Reserve a clear strip on the right for the recenter locator so the prose
+        // column ends before the rail and the button never overlaps readable text.
+        textView.textContainerInset = UIEdgeInsets(top: 10, left: 0, bottom: 10, right: threadlineLocatorRail)
 
         let coord = context.coordinator
         coord.textView = textView

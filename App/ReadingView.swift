@@ -455,7 +455,6 @@ struct ReadingView: View {
             Threadline(
                 viewModel: viewModel,
                 height: threadlineHeight(size.height),
-                leftHanded: leftHanded,
                 onHoldRead: {
                     holdStartedInThreadline = true
                     viewModel.startHolding()
