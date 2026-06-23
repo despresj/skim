@@ -17,6 +17,10 @@ struct ReadingView: View {
     /// Briefly true after a copy, swapping the rail's copy glyph to a checkmark.
     @State private var didCopy = false
 
+    /// True once the active word has scrolled out of the Threadline comfort band —
+    /// fed up from `Threadline`, drives the edge-lane return-to-word button.
+    @State private var offCenter = false
+
     /// The Export Questions sheet for the current read, built lazily so it captures
     /// the read's text, title, and current WPM at the moment it opens.
     @State private var exportVM: ExportViewModel?
@@ -41,6 +45,10 @@ struct ReadingView: View {
     /// scrolling only fires outside it. Covers the ~80pt dial + halo + touch +
     /// breathing room. Mirrors to the leading edge in left-hand mode.
     private let gaugeZoneWidth: CGFloat = 118
+
+    /// Width (points) of the slim **edge speed slider** lane that replaces the dial
+    /// while paused — the Threadline reclaims the difference (118 → 52).
+    private let edgeSliderZoneWidth: CGFloat = 52
 
     /// Vertical travel (points) that spans the entire speed range, so the full
     /// slow→fast sweep is reachable in one comfortable thumb slide no matter how
@@ -202,6 +210,8 @@ struct ReadingView: View {
                 navFlashLayer
 
                 controlZone(width: gaugeZoneWidth)
+
+                edgeSpeedRailLayer(size: geo.size)
 
                 editControl
 
@@ -430,10 +440,13 @@ struct ReadingView: View {
         .animation(.easeOut(duration: 0.25), value: viewModel.state)
     }
 
-    /// Text reserve on the gauge side == the Gauge Control Zone, so the paused
-    /// prose column ends exactly where the reserved gauge strip begins and never
-    /// renders under the gauge or its halo.
-    private var gaugeReserve: CGFloat { gaugeZoneWidth }
+    /// Text reserve on the reading-hand side. While paused the slim edge slider lane
+    /// stands in for the dial, so the paused Threadline column reclaims the width;
+    /// every other state keeps the full gauge zone. Consumed only by the paused
+    /// Threadline layout + hit-rect, so this is localized to paused mode.
+    private var gaugeReserve: CGFloat {
+        viewModel.state == .paused ? edgeSliderZoneWidth : gaugeZoneWidth
+    }
     /// Column reserve clearing the back button on the far edge, so the paused prose
     /// is a clean rectangle that never collides with it — no text wrapping needed.
     private var backReserve: CGFloat { 64 }
@@ -483,7 +496,7 @@ struct ReadingView: View {
                     holdStartedInThreadline = false
                 },
                 onCruiseToggle: { viewModel.toggleCruise() },
-                onRecenter: { viewModel.recenterContext() }
+                onOffCenterChange: { offCenter = $0 }
             )
             .frame(width: colWidth, height: threadlineHeight(size.height))
             .position(x: leading + colWidth / 2, y: midY)
@@ -491,6 +504,33 @@ struct ReadingView: View {
             .opacity(viewModel.state == .paused ? 1 : 0.18)
             .animation(.easeOut(duration: 0.2), value: viewModel.state)
             .transition(.opacity)
+        }
+    }
+
+    /// The paused edge instrument: the slim speed slider + the return-to-word button,
+    /// docked in the slim lane on the reading-hand edge, vertically aligned to the
+    /// Threadline band. A front sibling so its drag wins its own touches; absent in
+    /// every non-paused state (the dial returns there). Mirrors L/R like the column.
+    @ViewBuilder
+    private func edgeSpeedRailLayer(size: CGSize) -> some View {
+        if viewModel.state == .paused && viewModel.shouldShowContext {
+            let band = contextBand(size)
+            let midY = (band.lowerBound + band.upperBound) / 2
+            let x = leftHanded ? edgeSliderZoneWidth / 2 : size.width - edgeSliderZoneWidth / 2
+            EdgeSpeedRail(
+                count: viewModel.bands.count,
+                index: viewModel.bandIndex,
+                wpm: viewModel.wpm,
+                label: viewModel.band.label,
+                leftHanded: leftHanded,
+                offCenter: offCenter,
+                onSetIndex: { viewModel.setBandIndex($0) },
+                onRecenter: { viewModel.recenterContext() }
+            )
+            .frame(width: edgeSliderZoneWidth, height: threadlineHeight(size.height))
+            .position(x: x, y: midY)
+            .transition(.opacity)
+            .animation(.easeOut(duration: 0.2), value: viewModel.state)
         }
     }
 
@@ -624,7 +664,7 @@ struct ReadingView: View {
 
     @ViewBuilder
     private func controlZone(width: CGFloat) -> some View {
-        if viewModel.state != .completed {
+        if viewModel.state != .completed && viewModel.state != .paused {
             HStack(spacing: 0) {
                 if !leftHanded { Spacer(minLength: 0) }
                 ZStack {
@@ -1687,5 +1727,124 @@ private struct ScrubReadout: View {
             .background(Color.readingSurface.opacity(0.92), in: Capsule())
             .overlay(Capsule().stroke(Color.readingBorder, lineWidth: 1))
             .fixedSize()
+    }
+}
+
+/// The slim, directly-draggable vertical speed track for the paused edge rail. A
+/// drag maps the thumb's vertical position to a band index (top = fastest), driving
+/// `onSetIndex`; clamping + the detent haptic live in the view model. The 44pt-wide
+/// hit lane keeps the touch target comfortable though the visible track is ~4pt.
+private struct SpeedTrack: View {
+    let count: Int
+    let index: Int
+    @Binding var dragging: Bool
+    let onSetIndex: (Int) -> Void
+
+    /// Thumb travel: 0 at the slowest (bottom), 1 at the fastest (top).
+    private var fraction: CGFloat {
+        guard count > 1 else { return 0 }
+        return CGFloat(index) / CGFloat(count - 1)
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let h = geo.size.height
+            let accent = Color.readingAccent
+            ZStack {
+                Capsule().fill(Color.readingBorder).frame(width: 4)
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    Capsule().fill(accent.opacity(0.5))
+                        .frame(width: 4, height: max(0, h * fraction))
+                }
+                Circle()
+                    .fill(accent)
+                    .frame(width: 28, height: 28)
+                    .overlay(Circle().stroke(Color.readingSurface, lineWidth: 1.5))
+                    .shadow(color: accent.opacity(dragging ? 0.55 : 0), radius: 7)
+                    .position(x: geo.size.width / 2, y: (1 - fraction) * h)
+                    .animation(.easeOut(duration: 0.14), value: fraction)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { v in
+                        dragging = true
+                        let y = min(max(0, v.location.y), h)
+                        let f = 1 - (y / max(1, h))   // top = fastest
+                        onSetIndex(Int((f * CGFloat(count - 1)).rounded()))
+                    }
+                    .onEnded { _ in dragging = false }
+            )
+        }
+        .frame(width: 44)
+    }
+}
+
+/// The paused-mode edge instrument: a compact speed readout on top, the draggable
+/// `SpeedTrack` filling the middle, and the return-to-word button docked at the
+/// bottom (shown only when the active word has scrolled away). Replaces the half-
+/// dial while paused so the Threadline gets the width. Lives in a 52pt lane on the
+/// reading-hand edge; mirrored L/R by the caller's positioning.
+private struct EdgeSpeedRail: View {
+    let count: Int
+    let index: Int
+    let wpm: Int
+    let label: String
+    let leftHanded: Bool
+    let offCenter: Bool
+    let onSetIndex: (Int) -> Void
+    let onRecenter: () -> Void
+
+    @State private var dragging = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            readout
+                .padding(.bottom, 10)
+            SpeedTrack(count: count, index: index, dragging: $dragging, onSetIndex: onSetIndex)
+                .frame(maxHeight: .infinity)
+            // Reserve the button slot so the track height never jumps as it toggles.
+            ZStack {
+                if offCenter {
+                    Button(action: onRecenter) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.readingAccent)
+                            .frame(width: 34, height: 34)
+                            .background(Color.readingSurface.opacity(0.85), in: Circle())
+                            .overlay(Circle().stroke(Color.readingBorder, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Back to current word")
+                    .transition(.opacity)
+                }
+            }
+            .frame(height: 40)
+            .padding(.top, 12)
+        }
+        .frame(width: 52)
+        .animation(.easeOut(duration: 0.2), value: offCenter)
+    }
+
+    /// WPM number (amber) + tiny "wpm" + band label (muted, the optional element —
+    /// scales down on narrow screens). Quiet at rest, full while dragging.
+    private var readout: some View {
+        VStack(spacing: 1) {
+            Text("\(wpm)")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.readingAccent)
+            Text("WPM")
+                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.readingMuted)
+            Text(label)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(Color.readingMuted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .opacity(dragging ? 1 : 0.7)
+        .animation(.easeOut(duration: 0.15), value: dragging)
     }
 }

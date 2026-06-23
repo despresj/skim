@@ -1,11 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// Width of the reserved right-edge rail that carries the recenter locator. The
-/// prose is inset by this much on the right so the floating button always sits in
-/// clear space beside the text column — never over readable words.
-private let threadlineLocatorRail: CGFloat = 44
-
 /// The paused "where am I" surface. When the reader rests, the foot of the screen
 /// shows a calm, natively scrollable window of the surrounding prose — the active
 /// word in amber, the current sentence in full ink, the rest dimmer — so you can
@@ -33,13 +28,10 @@ struct Threadline: View {
     let onRelease: () -> Void
     /// A clean double tap: toggle Cruise.
     let onCruiseToggle: () -> Void
-    /// The locator was tapped: re-center on the active word.
-    let onRecenter: () -> Void
-
-    /// True once the user has scrolled the active word out of the comfortable
-    /// central band — drives the amber "back to word" locator. Owned here, fed by
-    /// the text view's scroll callback.
-    @State private var offCenter = false
+    /// Reports whether the active word has scrolled out of the comfort band, so the
+    /// parent can show/hide the return-to-word control in the edge lane. The button
+    /// itself now lives outside this view, beside the prose — never over the text.
+    let onOffCenterChange: (Bool) -> Void
 
     var body: some View {
         ThreadlineTextView(
@@ -49,10 +41,7 @@ struct Threadline: View {
             onHoldRead: onHoldRead,
             onRelease: onRelease,
             onCruiseToggle: onCruiseToggle,
-            onOffCenterChange: { off in
-                // Cheap: only flips when the active word crosses the comfort band.
-                if off != offCenter { offCenter = off }
-            }
+            onOffCenterChange: onOffCenterChange
         )
         .frame(maxWidth: .infinity)
         .frame(height: height)
@@ -70,31 +59,6 @@ struct Threadline: View {
                 endPoint: .bottom
             )
         )
-        // The "back to word" locator: a small amber glyph floating in the reserved
-        // right-edge rail (outside the prose column, clear of the gauge zone), shown
-        // only once the active word has scrolled out of view. It rides at the active
-        // line's resting height (~40% down) so it points back to where the word lives.
-        // Tapping re-centers.
-        .overlay(alignment: .trailing) {
-            if offCenter {
-                Button(action: onRecenter) {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.readingAccent)
-                        .frame(width: 34, height: 34)
-                        .background(Color.readingSurface.opacity(0.85), in: Circle())
-                        .overlay(Circle().stroke(Color.readingBorder, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Back to current word")
-                // Center the button inside the cleared rail, then lift it to the
-                // active word's rest line so it never sits over text or the gauge.
-                .frame(width: threadlineLocatorRail)
-                .offset(y: -height * 0.10)
-                .transition(.opacity)
-            }
-        }
-        .animation(.easeOut(duration: 0.2), value: offCenter)
     }
 }
 
@@ -270,9 +234,9 @@ private struct ThreadlineTextView: UIViewRepresentable {
         textView.delaysContentTouches = false
         textView.backgroundColor = .clear
         textView.contentInsetAdjustmentBehavior = .never
-        // Reserve a clear strip on the right for the recenter locator so the prose
-        // column ends before the rail and the button never overlaps readable text.
-        textView.textContainerInset = UIEdgeInsets(top: 10, left: 0, bottom: 10, right: threadlineLocatorRail)
+        // Prose uses the full Threadline width now; keep a slim right gutter so the
+        // scroll indicator never sits on the last glyphs.
+        textView.textContainerInset = UIEdgeInsets(top: 10, left: 0, bottom: 10, right: 6)
 
         let coord = context.coordinator
         coord.textView = textView
