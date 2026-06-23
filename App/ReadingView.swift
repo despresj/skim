@@ -580,6 +580,9 @@ struct ReadingView: View {
                             state: gaugeState,
                             label: viewModel.band.label,
                             wpm: viewModel.wpm,
+                            // Cruise: briefly surface the WPM while the thumb retunes
+                            // the band, then fade back to the quiet engaged gauge.
+                            revealReadout: adjustingSpeed,
                             warmth: viewModel.speedWarmth,
                             leftHanded: leftHanded
                         )
@@ -1237,9 +1240,13 @@ private struct PivotWord: View {
 enum GaugeState {
     /// At rest (ready/paused): inspecting. Full, readable band + WPM; dim dial.
     case paused
-    /// Actively reading by holding: a quieter active readout (just the WPM); lit dial.
+    /// Actively reading by holding: the *same* readable band + WPM grid as paused —
+    /// identical fonts, slots, and baselines — over a warmed (lit) dial. Hold is the
+    /// clutch, not a named mode, so it is never labelled.
     case manual
-    /// Hands-free cruise: "Cruise" + WPM, plus a thin amber engaged ring; lit dial.
+    /// Hands-free cruise: a quiet, engaged gauge — needle + lit arc + a thin amber
+    /// ring carry "locked, hands-free"; the text readout steps away (no "Cruise"
+    /// word) and only re-reveals the WPM briefly while the speed is being adjusted.
     case cruise
 }
 
@@ -1249,10 +1256,11 @@ enum GaugeState {
 /// arc, Blast at the top, like a speedometer sweeping up. Etched tick notches light
 /// up through the swept arc; the needle snaps band to band with a spring tuned to
 /// the haptic click. It reads three states (`GaugeState`): *paused* — dim dial with
-/// the full band + WPM spelled out; *manual* (hold-to-read) — lit dial with a quiet
-/// WPM-only readout so the word stays dominant; and *cruise* — lit dial labelled
-/// "Cruise" with a thin amber engaged ring around it. Mirrors to the opposite edge
-/// for a left-hand grip.
+/// the full band + WPM spelled out; *manual* (hold-to-read) — the same band + WPM
+/// grid in the same slots, warmed by a lit dial (no reflow, no "Hold" word); and
+/// *cruise* — a quiet engaged gauge (lit needle/arc + a thin amber ring) with the
+/// text readout hidden, surfacing the WPM only while the speed is being adjusted.
+/// Mirrors to the opposite edge for a left-hand grip.
 ///
 /// The *gesture* is unchanged — the joystick in `ReadingView` still drives
 /// `setBandIndex` from a vertical slide; this purely renders `index / count`.
@@ -1264,6 +1272,10 @@ private struct SpeedDial: View {
     let state: GaugeState
     let label: String
     let wpm: Int
+    /// Cruise only: while the thumb is actively retuning the band, briefly surface the
+    /// WPM in the locked readout grid, then let it fade back to the quiet engaged
+    /// gauge. Ignored in paused/manual, which always show the readout.
+    var revealReadout: Bool = false
     /// Speed warmth (0…1): the lit arc, needle, hub, and ticks warm from calm
     /// gold toward hot amber, and the needle's glow swells — calm at Study, alive
     /// at Blast, never an alarm.
@@ -1378,47 +1390,37 @@ private struct SpeedDial: View {
         return isActive ? accent : Color.readingForeground.opacity(0.4)
     }
 
-    /// The mode + speed readout nestled inside the arc on the screen side of the hub.
-    /// Content tracks `GaugeState`: *paused* spells out the full band + WPM + "wpm"
-    /// (the most readable, inspectable form); *cruise* swaps the band line for the
-    /// mode word "Cruise" above the live WPM; and *manual* drops to a quiet WPM-only
-    /// readout, dimmed a touch, so an active read keeps the word dominant. The WPM
-    /// always rides the warm accent — the number is what the eye lands on.
+    /// The speed readout nestled inside the arc on the screen side of the hub.
+    /// *Paused* and *manual* (hold-to-read) render the **identical** grid — same band
+    /// + WPM + "wpm", same fonts, same slots, same baselines — so warming from rest to
+    /// an active hold never shifts a digit or reflows a line; only the *dial* warms
+    /// (lit arc, brighter needle, hotter amber via `isActive`/`glowScale`). Hold is a
+    /// clutch, never a named mode, so it carries no state word. *Cruise* hides the
+    /// readout entirely — the needle, lit arc, and engaged ring say "locked,
+    /// hands-free" — and only re-reveals the WPM, in that same locked grid, while the
+    /// speed is being retuned. The WPM always rides the warm accent — the number is
+    /// what the eye lands on.
     @ViewBuilder
     private func readout(hub: CGPoint, radius: CGFloat) -> some View {
         let cx = hub.x + (leftHanded ? radius * 0.5 : -radius * 0.5)
         Group {
             switch state {
-            case .paused:
+            case .paused, .manual:
                 labelledReadout(top: label)
             case .cruise:
-                labelledReadout(top: "Cruise")
-            case .manual:
-                // Hold is the clutch, not a mode: show the live WPM and the speed
-                // band, but *no* state word — never "Hold", never "Cruise". The
-                // contact-edge glow communicates the hold; the dial just reports
-                // speed. Quieter than paused so the focal word stays the hero.
-                VStack(spacing: 0) {
-                    Text("\(wpm)")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(accent)
-                    Text("wpm")
-                        .font(.system(size: 8, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color.readingMuted)
-                    Text(label)
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color.readingForeground.opacity(0.7))
-                }
-                .opacity(0.9)
-                .fixedSize()
+                if revealReadout { labelledReadout(top: label) }
             }
         }
         .position(x: cx, y: hub.y)
         .animation(.easeOut(duration: 0.2), value: state)
+        .animation(.easeOut(duration: 0.25), value: revealReadout)
     }
 
-    /// The three-line readout — a top label (band name when paused, "Cruise" when
-    /// cruising), the live WPM in the warm accent, and a small "wpm" suffix.
+    /// The three-line readout — the band name, the live WPM in the warm accent, and a
+    /// small "wpm" suffix. The WPM uses tabular (monospaced) digits so 300, 450, 725…
+    /// all occupy the same width — the number never jitters as the band changes. This
+    /// one grid is shared by paused, manual, and the brief cruise reveal, which is what
+    /// keeps their geometry locked together.
     private func labelledReadout(top: String) -> some View {
         VStack(spacing: 0) {
             Text(top)
@@ -1426,6 +1428,7 @@ private struct SpeedDial: View {
                 .foregroundStyle(Color.readingForeground)
             Text("\(wpm)")
                 .font(.system(size: 17, weight: .bold, design: .rounded))
+                .monospacedDigit()
                 .foregroundStyle(accent)
             Text("wpm")
                 .font(.system(size: 8, weight: .medium, design: .rounded))
