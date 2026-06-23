@@ -12,6 +12,14 @@ final class ReaderViewModel {
     private(set) var currentIndex = 0
     private(set) var state: ReaderState = .idle
 
+    /// Bumped whenever the reader settles somewhere the paused Threadline should
+    /// recenter on: entering pause, and each scrub step while paused. The viewport
+    /// keys its auto-center off this, so a manual scroll (which never bumps it) is
+    /// never yanked back, but the next pause/scrub recenters cleanly on the active
+    /// word. A monotonic counter, not the index, so re-renders don't recenter.
+    private(set) var contextRecenterTick = 0
+    private func bumpRecenter() { contextRecenterTick += 1 }
+
     /// Current reading speed. Adjusted live by sliding the thumb vertically
     /// during a hold (see `setBandIndex`).
     private(set) var band: SpeedBand = .cruise
@@ -171,6 +179,36 @@ final class ReaderViewModel {
     }
 
     var hasText: Bool { !tokens.isEmpty }
+
+    // MARK: Reading-mode semantics — Pause and Cruise are modes; Hold is the clutch
+    //
+    // The engine keeps a fine-grained `ReaderState` machine (idle/ready/precisionHeld/
+    // paused/cruisePlaying/completed) because gestures and persistence lean on it. But
+    // the *UI* only ever needs to know one of three things — am I parked, am I driving
+    // by myself, or am I temporarily reading because a finger is down — so every view
+    // reads these derived flags instead of switching on the raw state. That keeps a
+    // contradictory combination (context visible while words advance, "Cruise" while
+    // merely holding, pause chrome during a hold) impossible to express.
+
+    /// Temporarily reading because the thumb is held — the clutch, not a mode. Maps
+    /// to the engine's `precisionHeld`; never a peer of paused/cruise in the UI.
+    var isHoldingToRead: Bool { state == .precisionHeld }
+
+    /// Driving hands-free.
+    var isCruising: Bool { state == .cruisePlaying }
+
+    /// Parked: stopped and not holding — the calm orientation surface (the pre-start
+    /// `ready` and a mid-read `paused` are the same chrome: stopped, inspectable).
+    var isParked: Bool { state == .ready || state == .paused }
+
+    /// Words are advancing — by cruise autopilot or under a held thumb.
+    var isActivelyReading: Bool { isCruising || isHoldingToRead }
+
+    /// The pause context map shows only while parked with text — never mid-read.
+    var shouldShowContext: Bool { hasText && isParked }
+
+    /// Pause chrome (left utility rail, back button) shows only while parked.
+    var shouldShowPauseChrome: Bool { hasText && isParked }
 
     /// Number of words in the loaded text — the one clean metric the end-of-read
     /// review shows.
@@ -592,6 +630,7 @@ final class ReaderViewModel {
         isScrubbing = true
         state = .paused
         scrubQuarter = Int(progress * 4)
+        bumpRecenter()
         haptics.prepare()
     }
 
@@ -613,6 +652,7 @@ final class ReaderViewModel {
 
         guard target != currentIndex else { return }
         currentIndex = target
+        bumpRecenter()
     }
 
     /// The finger lifted off the scrubber. We've already landed on the selected
@@ -760,6 +800,7 @@ final class ReaderViewModel {
         cancelPlayback()
         mode = .precisionHeld
         state = .paused
+        bumpRecenter()
         saveProgress()
         haptics.tick(.pause)
     }
@@ -795,6 +836,7 @@ final class ReaderViewModel {
         guard state == .precisionHeld else { return }
         cancelPlayback()
         state = .paused
+        bumpRecenter()
         saveProgress()
         haptics.tick(.pause)
     }

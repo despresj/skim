@@ -126,10 +126,11 @@ extension Color {
 struct ReadingWarmth: View {
     let warmth: Double
     let leftHanded: Bool
-    /// A touch brighter when the reader is at rest or the dial is being turned (so
-    /// the instrument reads as "ready / adjusting"); subtler while actively reading,
-    /// where the word owns the surface. Defaults off.
-    var emphasized: Bool = false
+    /// Halo energy (0…1) for the reader's mode: parked is a faint hint, a held thumb
+    /// is medium, cruise is strongest. It scales the glow's *brightness*, never its
+    /// footprint — an active read makes the instrument burn warmer, not wider, so the
+    /// right side never lights up as a panel. Defaults to the calm parked level.
+    var intensity: Double = 0.4
 
     var body: some View {
         // Hue rides the speed, in the same amber family as the gauge: a muted
@@ -137,14 +138,15 @@ struct ReadingWarmth: View {
         // never red, never an alarm.
         let hue = Color.readingAccent(warmth: warmth)
 
-        // The reading-hand edge; mirror x for a left-hand grip so the aura follows
-        // the gauge to whichever side it lives on.
-        func atEdge(_ x: CGFloat) -> CGFloat { leftHanded ? 1 - x : x }
+        // The gauge sits at mid-height hugging the reading-hand edge. The halo is
+        // measured in *points* off that fixed anchor (not screen fractions), so its
+        // size never grows with the screen — it stays a glow on the instrument.
+        // Mirror x for a left-hand grip so it follows the gauge to either side.
+        let anchorX = UnitPoint(x: leftHanded ? 0.06 : 0.94, y: 0.5)
 
-        // Restrained aura strength: subtle while reading, a little more present when
-        // paused / adjusting, warming gently with speed — an instrument glow, never
-        // a flare.
-        let auraPeak = (emphasized ? 0.085 : 0.05) + warmth * 0.06
+        // Restrained aura strength: scales with mode energy and warms gently with
+        // speed. Brightness only — the radius below is fixed.
+        let auraPeak = (0.045 + warmth * 0.05) * intensity
 
         // Vignette ink — warm near-black in dark; a faint, low-alpha warm gray in
         // light so the frame stays a whisper against paper, never a smudge.
@@ -170,21 +172,23 @@ struct ReadingWarmth: View {
                 endRadius: 560
             )
 
-            // 2 · Tight instrument aura centered on the gauge (mid-height, near the
-            //     reading edge). A small radius — only modestly past the instrument —
-            //     with opacity front-loaded into the inner stops, so the gauge glows
-            //     while the rest of the surface, and the focal word off to the side,
-            //     stay calm and dark. Follows the gauge for a left-hand grip.
+            // 2 · A tight, localized instrument glow centered on the gauge. The
+            //     radius is small and the opacity collapses fast — effectively gone
+            //     by ~80pt — so the gauge reads as alive while the rest of the right
+            //     side, and the focal word off to the left, stay dark. A bounded
+            //     `frame` keeps the gradient's coordinate box small so it can't wash
+            //     the whole edge; it's a halo on the instrument, not a side panel.
             RadialGradient(
                 gradient: Gradient(stops: [
                     .init(color: hue.opacity(auraPeak), location: 0.0),
-                    .init(color: hue.opacity(auraPeak * 0.5), location: 0.28),
-                    .init(color: hue.opacity(auraPeak * 0.16), location: 0.58),
+                    .init(color: hue.opacity(auraPeak * 0.42), location: 0.34),
+                    .init(color: hue.opacity(auraPeak * 0.12), location: 0.62),
+                    .init(color: .clear, location: 0.82),
                     .init(color: .clear, location: 1.0),
                 ]),
-                center: UnitPoint(x: atEdge(0.92), y: 0.5),
-                startRadius: 6,
-                endRadius: 150
+                center: anchorX,
+                startRadius: 4,
+                endRadius: 110
             )
         }
         .ignoresSafeArea()

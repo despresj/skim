@@ -394,6 +394,56 @@ do {
 }
 expectEqual(ReadingContext.fullText([]), "", "no tokens -> empty string")
 
+print("ReadingContext.proseMap")
+do {
+    // Repeated words: each "the" must map to its OWN occurrence, not the first
+    // match a string search would find. This is the load-bearing guarantee.
+    let tokens = Tokenizer.tokenize("the the the")
+    let map = ReadingContext.proseMap(tokens)
+    expectEqual(map.text, "the the the", "repeated words join with spaces")
+    expectEqual(map.ranges.count, tokens.count, "one range per token")
+    expectEqual(map.ranges.map(\.location), [0, 4, 8], "repeated words get distinct offsets")
+    let ns = map.text as NSString
+    for (i, range) in map.ranges.enumerated() {
+        expectEqual(ns.substring(with: range), tokens[i].text, "range \(i) reads back its token")
+    }
+}
+do {
+    // A paragraph break is "\n\n" (2 UTF-16 units), so the next token's offset
+    // advances by 2, not 1.
+    let tokens = Tokenizer.tokenize("alpha beta\n\ngamma delta")
+    let map = ReadingContext.proseMap(tokens)
+    expectEqual(map.text, "alpha beta\n\ngamma delta", "paragraph break preserved")
+    expectEqual(map.ranges[2].location, 12, "\\n\\n advances the offset by 2")
+    expectEqual((map.text as NSString).substring(with: map.ranges[2]), "gamma",
+                "first word after the break maps correctly")
+}
+do {
+    // Begin/end: first range at 0, last range ends exactly at the string length.
+    let tokens = Tokenizer.tokenize("one two three")
+    let map = ReadingContext.proseMap(tokens)
+    expectEqual(map.ranges.first?.location, 0, "first token starts at 0")
+    let last = map.ranges.last!
+    expectEqual(last.location + last.length, (map.text as NSString).length,
+                "last range ends at the string end")
+}
+do {
+    let map = ReadingContext.proseMap(Tokenizer.tokenize("solo"))
+    expectEqual(map.text, "solo", "single token text")
+    expectEqual(map.ranges, [NSRange(location: 0, length: 4)], "single token range")
+}
+do {
+    let map = ReadingContext.proseMap([])
+    expectEqual(map.text, "", "empty -> empty string")
+    expect(map.ranges.isEmpty, "empty -> no ranges")
+}
+do {
+    // fullText is now literally proseMap.text — guard the refactor.
+    let tokens = Tokenizer.tokenize("First para here.\n\nSecond para there.")
+    expectEqual(ReadingContext.fullText(tokens), ReadingContext.proseMap(tokens).text,
+                "fullText and proseMap return the identical string")
+}
+
 print("TextHash")
 expectEqual(TextHash.of("hello"), TextHash.of("hello"), "same text -> same hash (stable across calls)")
 expect(TextHash.of("hello") != TextHash.of("Hello"), "different text -> different hash")

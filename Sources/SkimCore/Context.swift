@@ -43,18 +43,52 @@ public enum ReadingContext {
     /// original paragraph breaks read back as paragraphs. Markdown noise is already
     /// gone (the tokenizer stripped it), so this is clean reading prose, not the raw
     /// source. Empty token list → empty string.
+    ///
+    /// This is exactly `proseMap(tokens).text`; the two share one assembly rule so
+    /// the string the paused Threadline highlights can never drift from this one.
     public static func fullText(_ tokens: [ReadingToken]) -> String {
-        guard let first = tokens.first else { return "" }
-        var result = first.text
-        var lastParagraph = first.paragraphIndex
-        for token in tokens.dropFirst() {
-            if token.paragraphIndex != lastParagraph {
-                result += "\n\n" + token.text
-                lastParagraph = token.paragraphIndex
-            } else {
-                result += " " + token.text
-            }
+        proseMap(tokens).text
+    }
+
+    /// The full clean prose (identical to `fullText`) paired with each token's
+    /// character range *within that exact string*, so a view can highlight the
+    /// active token and scroll its range into view without ever string-searching —
+    /// which would mis-target repeated words. The range and the string are built in
+    /// one pass, so `ranges[i]` is the source span of `tokens[i]` by construction.
+    public struct ProseMap: Equatable, Sendable {
+        public let text: String
+        /// `NSRange` (UTF-16 offsets) into `text`, one per token, in token order.
+        /// UTF-16 is what `NSAttributedString`/TextKit consume, so the app layer
+        /// never re-derives offsets. Valid only against this map's own `text`.
+        public let ranges: [NSRange]
+
+        public init(text: String, ranges: [NSRange]) {
+            self.text = text
+            self.ranges = ranges
         }
-        return result
+    }
+
+    /// Assemble the clean prose and the per-token character ranges together. Uses
+    /// the same separator rule as `fullText` (`\n\n` when the paragraph index
+    /// advances, a single space otherwise) and tracks a running UTF-16 cursor so
+    /// each token's `NSRange` lands on its own characters. Empty tokens → empty.
+    public static func proseMap(_ tokens: [ReadingToken]) -> ProseMap {
+        guard let first = tokens.first else { return ProseMap(text: "", ranges: []) }
+
+        var text = first.text
+        var ranges: [NSRange] = [NSRange(location: 0, length: first.text.utf16.count)]
+        var cursor = first.text.utf16.count
+        var lastParagraph = first.paragraphIndex
+
+        for token in tokens.dropFirst() {
+            let separator = token.paragraphIndex != lastParagraph ? "\n\n" : " "
+            text += separator + token.text
+            cursor += separator.utf16.count
+            ranges.append(NSRange(location: cursor, length: token.text.utf16.count))
+            cursor += token.text.utf16.count
+            lastParagraph = token.paragraphIndex
+        }
+
+        return ProseMap(text: text, ranges: ranges)
     }
 }

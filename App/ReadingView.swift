@@ -31,8 +31,13 @@ struct ReadingView: View {
     /// speed alone — the dial's label and WPM always state it.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Width fraction of the thumb control rail. Generous for one-thumb reach.
-    private let controlFraction: CGFloat = 0.42
+    /// Width (points) of the **Gauge Control Zone** — the reserved vertical strip on
+    /// the reading-hand edge that owns the gauge, its halo, and all speed steering
+    /// (slide/flick). One source of truth so the three things that must agree do:
+    /// the text never enters it, steering only fires inside it, and threadline
+    /// scrolling only fires outside it. Covers the ~80pt dial + halo + touch +
+    /// breathing room. Mirrors to the leading edge in left-hand mode.
+    private let gaugeZoneWidth: CGFloat = 118
 
     /// Vertical travel (points) that spans the entire speed range, so the full
     /// slow→fast sweep is reachable in one comfortable thumb slide no matter how
@@ -88,6 +93,26 @@ struct ReadingView: View {
     /// hold-to-read out on the bare canvas can't drift the speed or fire a skip.
     @State private var gestureStartZone: GestureZone = .canvas
 
+    // MARK: Paused-Threadline scroll arbitration (drag scrolls, press holds)
+    //
+    // Inside the paused context, a stationary press still holds-to-read while a
+    // vertical drag scrolls the context. The two share the one persistent gesture
+    // layer (so a hold's release is never lost when reading hides the context) and
+    // are told apart by movement, exactly like `possibleHold → holdingToRead |
+    // scrollingThreadline`: the press began in the context band, and the first clear
+    // vertical travel past a threshold hands control to scrolling and cancels the
+    // pending read; otherwise the hold gate fires and reads.
+
+    /// Imperative handle to the paused context's scroll position.
+    @State private var contextScroller = ThreadlineScroller()
+    /// The current surface press began within the paused context band (eligible to
+    /// become a scroll).
+    @State private var gestureStartInContext = false
+    /// The press has committed to scrolling the context — no read will start.
+    @State private var contextScrolling = false
+    /// Last drag translation handed to the scroller, to apply incremental deltas.
+    @State private var lastScrollTranslation: CGFloat = 0
+
     /// Fade level for the flick confirmation. Snapped to 1 on each jump, then
     /// eased back to 0 — so the label flashes and dissolves without lingering.
     @State private var navFlashOpacity: Double = 0
@@ -124,9 +149,17 @@ struct ReadingView: View {
     /// hold or cruise — and while the thumb is turning the dial; dim and calm at rest.
     private var dialIsActive: Bool { gaugeState != .paused || adjustingSpeed }
 
-    /// The warm aura is a touch more present when at rest or adjusting (inspecting /
-    /// feedback) and subtler while actively reading, so the word stays dominant.
-    private var auraEmphasized: Bool { gaugeState == .paused || adjustingSpeed }
+    /// Gauge-halo energy (0…1) by mode — brightness only, never footprint (see
+    /// `ReadingWarmth`). Cruise burns warmest (committed autopilot), a held thumb
+    /// sits between, parked is a faint hint; turning the dial briefly lifts it so
+    /// the instrument reads as "adjusting."
+    private var auraIntensity: Double {
+        if viewModel.isCruising { return 1.0 }
+        // A held thumb clearly lights the gauge — this localized halo is now the
+        // primary "you are holding to read" signal (the wide edge wash is gone).
+        if viewModel.isHoldingToRead || adjustingSpeed { return 0.85 }
+        return 0.4
+    }
 
     // MARK: Gesture model
     //
@@ -140,11 +173,13 @@ struct ReadingView: View {
     //      Cruise; single tap → brake *only while cruising*. All global and
     //      side-independent — left, center, right, the active word, the context
     //      strip all behave the same.
-    //   2. Thumb rail  — the reading-hand `controlFraction` column (drawn by
-    //      `controlZone`, but non-interactive). Its ONLY job is steering: a gesture
-    //      that *begins* in the rail can slide→speed or flick→±12. Hold/tap there
-    //      still mean read/cruise (they're global); a canvas-started gesture never
-    //      steers, so speed/skip stay off the bare surface.
+    //   2. Gauge Control Zone — the reading-hand `gaugeZoneWidth` strip (drawn by
+    //      `controlZone`, but non-interactive). It owns the gauge + halo and is the
+    //      steering lane: a gesture that *begins* here can slide→speed or flick→±12,
+    //      and threadline scrolling never starts here. The text column ends where
+    //      this strip begins, so the two never compete. Hold/tap stay global
+    //      (read/cruise from anywhere); a Text-Zone gesture never steers, and a
+    //      Gauge-Zone gesture never scrolls the context.
     //   3. Utility controls — settings/export/lightbulb, back chevron, scrubber,
     //      new-text chip. Each consumes only its own tap; none leak to the surface
     //      because each sits above the surface layer and intercepts first.
@@ -156,17 +191,17 @@ struct ReadingView: View {
                 ReadingCanvas()
 
                 ReadingWarmth(warmth: viewModel.speedWarmth, leftHanded: leftHanded,
-                              emphasized: auraEmphasized)
+                              intensity: auraIntensity)
 
                 topContent(height: geo.size.height, width: geo.size.width)
 
                 bottomContent(height: geo.size.height)
 
-                readingSurfaceGestureLayer(width: geo.size.width)
+                readingSurfaceGestureLayer(size: geo.size)
 
                 navFlashLayer
 
-                controlZone(width: geo.size.width * controlFraction)
+                controlZone(width: gaugeZoneWidth)
 
                 editControl
 
@@ -180,7 +215,7 @@ struct ReadingView: View {
 
                 // Dev-only zone visualizer. Never hit-testable, so it can sit on
                 // top without ever changing which layer owns a touch.
-                gestureDebugOverlay(railWidth: geo.size.width * controlFraction)
+                gestureDebugOverlay(railWidth: gaugeZoneWidth)
 
                 // Topmost of all: one-time gesture coaching, above even the
                 // scrubber so its dimmed backdrop covers the whole surface.
@@ -267,16 +302,13 @@ struct ReadingView: View {
         .accessibilityLabel(label)
     }
 
-    /// How present the utility rail is. Full at rest (ready/paused); a quiet whisper
-    /// while words stream under hands-free cruise — the tools stay reachable but
-    /// stepped back so the focal word stays sacred — and gone during an active thumb
-    /// hold or on the completion screen.
+    /// How present the utility rail is. Full while parked (ready/paused) — these are
+    /// setup/inspection tools and they belong to the parked surface. Gone entirely
+    /// while actively reading (a thumb hold *or* cruise) and on idle/completed:
+    /// active reading is for reading, not configuration, and visible tools there
+    /// would blur whether the reader is parked or driving.
     private var utilityOpacity: Double {
-        switch viewModel.state {
-        case .ready, .paused:   return 1
-        case .cruisePlaying:    return 0.32
-        default:                return 0
-        }
+        viewModel.shouldShowPauseChrome ? 1 : 0
     }
 
     /// Pause a running cruise (the read shouldn't advance behind the sheet), then
@@ -335,10 +367,7 @@ struct ReadingView: View {
     /// words actually stream, the focal pivot word is the whole surface, and a
     /// paragraph re-flowing at the foot would only add motion and compete. Hidden on
     /// the completion screen and when nothing's loaded.
-    private var showsContext: Bool {
-        viewModel.hasText &&
-        (viewModel.state == .ready || viewModel.state == .paused)
-    }
+    private var showsContext: Bool { viewModel.shouldShowContext }
 
     /// Any live reading session (not idle/completed). Keeps the progress scrubber
     /// present and seekable even while cruising — where the context strip itself is
@@ -352,12 +381,25 @@ struct ReadingView: View {
     private func bottomContent(height: CGFloat) -> some View {
         VStack(spacing: 0) {
             Spacer()
+            // The context lives *behind* the gesture surface and never takes touches
+            // (`.allowsHitTesting(false)` below), so the reader owns every tap/hold —
+            // no dead zones. At rest (`.ready`) it's the calm static band; when paused
+            // it's the taller auto-centered Threadline. Both sit in a simple reserved
+            // column (no text wrapping around controls): a normal margin on the open
+            // side, a wider reserve on the side the gauge / back button occupies.
             if showsContext {
-                ContextStrip(viewModel: viewModel)
-                    // Centered across the full width so the current word sits in
-                    // the middle, with context flowing above and below it.
-                    .padding(.horizontal, 28)
-                    .transition(.opacity)
+                if viewModel.state == .paused {
+                    Threadline(viewModel: viewModel,
+                               height: threadlineHeight(height),
+                               scroller: contextScroller)
+                        .padding(.leading, leftHanded ? gaugeReserve : backReserve)
+                        .padding(.trailing, leftHanded ? backReserve : gaugeReserve)
+                        .transition(.opacity)
+                } else {
+                    ContextStrip(viewModel: viewModel)
+                        .padding(.horizontal, 28)
+                        .transition(.opacity)
+                }
             }
             // Lift the context block well clear of the home indicator: a fixed gap
             // below it, with the progress line pinned beneath — so the prose stops
@@ -369,7 +411,36 @@ struct ReadingView: View {
                 // the home indicator.
                 .padding(.bottom, 26)
         }
+        // Context is decorative orientation only — it must not intercept reader
+        // gestures. The interactive controls (back, utility rail, scrubber) are
+        // separate front siblings in the root ZStack and keep their own touches.
+        .allowsHitTesting(false)
         .animation(.easeOut(duration: 0.25), value: showsContext)
+        .animation(.easeOut(duration: 0.25), value: viewModel.state)
+    }
+
+    /// Text reserve on the gauge side == the Gauge Control Zone, so the paused
+    /// prose column ends exactly where the reserved gauge strip begins and never
+    /// renders under the gauge or its halo.
+    private var gaugeReserve: CGFloat { gaugeZoneWidth }
+    /// Column reserve clearing the back button on the far edge, so the paused prose
+    /// is a clean rectangle that never collides with it — no text wrapping needed.
+    private var backReserve: CGFloat { 64 }
+
+    /// Paused context viewport height. Modest now that it scrolls — it shows ~4
+    /// lines each side for orientation and you drag for more, so it sits calmly in
+    /// the lower band instead of crowding the word and the gauge.
+    private func threadlineHeight(_ screenHeight: CGFloat) -> CGFloat {
+        min(300, screenHeight * 0.40)
+    }
+
+    /// The paused context's vertical span on screen (matching `bottomContent`'s
+    /// layout), padded a touch for forgiving touch arbitration. A press starting in
+    /// this band is eligible to scroll the context instead of holding to read.
+    private func contextBand(_ size: CGSize) -> ClosedRange<CGFloat> {
+        let bottom = size.height - size.height * 0.13 - 30
+        let top = bottom - threadlineHeight(size.height)
+        return (top - 12)...(bottom + 12)
     }
 
     // MARK: Scrubber (drag the progress line to seek)
@@ -409,11 +480,11 @@ struct ReadingView: View {
     /// releases here), and cruising (taps brake/exit) — and inert on idle/completed,
     /// so the surface stays sacred outside a read.
     @ViewBuilder
-    private func readingSurfaceGestureLayer(width: CGFloat) -> some View {
+    private func readingSurfaceGestureLayer(size: CGSize) -> some View {
         if inSession {
             Color.clear
                 .contentShape(Rectangle())
-                .gesture(surfaceDragGesture(width: width))
+                .gesture(surfaceDragGesture(size: size))
                 .simultaneousGesture(surfaceTapGesture)
         } else {
             Color.clear
@@ -495,17 +566,10 @@ struct ReadingView: View {
             HStack(spacing: 0) {
                 if !leftHanded { Spacer(minLength: 0) }
                 ZStack {
-                    // A faint edge glow *only* while the rail is engaged (held or
-                    // being turned) — no static side band at rest, so the resting
-                    // surface reads as a clean dark canvas with just the gauge + its
-                    // aura, never a vertical panel. Fades toward the active edge.
-                    LinearGradient(
-                        colors: [.clear,
-                                 Color.readingAccent(warmth: viewModel.speedWarmth)
-                                    .opacity(isHolding || adjustingSpeed ? 0.08 : 0.0)],
-                        startPoint: leftHanded ? .trailing : .leading,
-                        endPoint: leftHanded ? .leading : .trailing
-                    )
+                    // No side-spanning edge wash: touching to read must light the
+                    // *gauge*, not half the screen. The "you are holding" feedback is
+                    // the gauge's own localized halo (`ReadingWarmth`, which brightens
+                    // on hold) plus the lit dial — both tight on the instrument.
 
                     HStack {
                         if !leftHanded { Spacer() }
@@ -523,6 +587,11 @@ struct ReadingView: View {
                         // edge — a built-in instrument tucked into the reading-hand
                         // corner, not a gauge floating in from the side.
                         .padding(leftHanded ? .leading : .trailing, 2)
+                        // While parked, the gauge steps back to a quiet readout —
+                        // still legible, no longer competing with the context. It
+                        // brightens to full only while actively reading (hold/cruise).
+                        .opacity(viewModel.isParked ? 0.6 : 1)
+                        .animation(.easeOut(duration: 0.25), value: viewModel.isParked)
                         if leftHanded { Spacer() }
                     }
                     .allowsHitTesting(false)
@@ -553,8 +622,9 @@ struct ReadingView: View {
     /// read, so leading with movement just sets speed or jumps without starting a
     /// read. Mid-cruise a hold never grabs the wheel: words already stream, so it only
     /// steers (on the rail) and otherwise does nothing — braking is a tap.
-    private func surfaceDragGesture(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+    private func surfaceDragGesture(size: CGSize) -> some Gesture {
+        let width = size.width
+        return DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if !gestureActive {
                     gestureActive = true
@@ -562,18 +632,50 @@ struct ReadingView: View {
                     gestureStartZone = ReaderGestures.zone(
                         touchX: Double(value.startLocation.x),
                         width: Double(width),
-                        controlFraction: Double(controlFraction),
+                        controlFraction: Double(gaugeZoneWidth / max(1, width)),
                         leftHanded: leftHanded)
                     speedBaseline = viewModel.bandIndex
                     axis = nil
                     flickArmed = true
                     adjustingSpeed = false
+                    // Eligible to scroll the paused context: the press began in the
+                    // context band, on the bare canvas (not the steering rail).
+                    gestureStartInContext = gestureStartState == .paused
+                        && gestureStartZone == .canvas
+                        && contextBand(size).contains(value.startLocation.y)
+                    contextScrolling = false
+                    lastScrollTranslation = 0
                     dbg("reading surface hold start (\(gestureStartZone), \(gestureStartState))")
                     // Arm the hold-to-read timer from a resting state; in cruise the
                     // thumb only steers, so no read is ever scheduled.
                     if gestureStartState != .cruisePlaying {
                         scheduleHoldRead()
                     }
+                }
+
+                // Paused-context arbitration: a press that began in the context band
+                // becomes a scroll the moment vertical travel clearly wins — which
+                // cancels the pending read — but a still press falls through to the
+                // hold gate and reads. Once a read has started (state left .paused),
+                // the context is gone, so we never scroll it.
+                if gestureStartInContext {
+                    if viewModel.state == .paused {
+                        let dy = value.translation.height
+                        let dx = value.translation.width
+                        if !contextScrolling, abs(dy) > 10, abs(dy) > abs(dx) {
+                            contextScrolling = true
+                            cancelHoldRead()        // movement won: no read
+                            lastScrollTranslation = dy
+                            dbg("threadline scroll start")
+                        }
+                        if contextScrolling {
+                            let incremental = dy - lastScrollTranslation
+                            lastScrollTranslation = dy
+                            // Drag down → reveal earlier text (offset decreases).
+                            contextScroller.scroll(by: -incremental)
+                        }
+                    }
+                    return
                 }
 
                 // Steering is rail-only: a canvas-started press ignores movement
@@ -665,6 +767,9 @@ struct ReadingView: View {
                 axis = nil
                 flickArmed = true
                 adjustingSpeed = false
+                gestureStartInContext = false
+                contextScrolling = false
+                lastScrollTranslation = 0
             }
     }
 
@@ -789,9 +894,13 @@ struct ReadingView: View {
         .animation(.easeOut(duration: 0.22), value: editVisible)
     }
 
-    /// Shown whenever you're not mid-read or finished — i.e. waiting or paused.
+    /// Visible whenever the reader is parked (ready or paused) — the safe state to
+    /// leave, restart, or read something else. Gone the instant a hold or cruise
+    /// begins, so active reading has one dominant action (pause), never "navigate
+    /// away." The paused Threadline routes its text around this button (it is one of
+    /// the Threadline's exclusion zones), so the two never collide.
     private var editVisible: Bool {
-        viewModel.state == .ready || viewModel.state == .paused
+        viewModel.shouldShowPauseChrome
     }
 
     // MARK: New-text pickup chip
@@ -1164,6 +1273,17 @@ private struct SpeedDial: View {
     /// The accent warmed for the current speed — the dial's one hot color.
     private var accent: Color { Color.readingAccent(warmth: warmth) }
 
+    /// How energized the active glow is: none while parked, medium under a held
+    /// thumb, full in cruise. A hold should read as temporary pressure, not as the
+    /// committed autopilot of cruise, so its dial is lit but deliberately calmer.
+    private var glowScale: Double {
+        switch state {
+        case .paused: return 0.0
+        case .manual: return 0.8   // touch lights the dial clearly (no edge wash now)
+        case .cruise: return 1.0
+        }
+    }
+
     /// The low end sits at straight-down (the 6-o'clock end); the needle sweeps up
     /// through the inward horizontal to straight-up as speed climbs, so slow reads at
     /// the bottom of the arc and fast at the top — a rising speedometer, not an
@@ -1231,8 +1351,10 @@ private struct SpeedDial: View {
                        startDeg: startDeg, sweepDeg: sweepDeg, frac: frac)
                     .fill(isActive ? accent
                                    : Color.readingForeground.opacity(0.5))
-                    .shadow(color: isActive ? accent.opacity(0.4 + warmth * 0.35) : .clear,
-                            radius: isActive ? 5 + warmth * 4 : 5)
+                    // Glow energy scales with the mode: muted parked, medium hold,
+                    // full cruise (see `glowScale`).
+                    .shadow(color: accent.opacity((0.4 + warmth * 0.35) * glowScale),
+                            radius: 5 + warmth * 4 * glowScale)
                     .animation(snap, value: index)
 
                 // Hub cap — the mechanical pivot.
@@ -1272,8 +1394,10 @@ private struct SpeedDial: View {
             case .cruise:
                 labelledReadout(top: "Cruise")
             case .manual:
-                // Quieter active state: just the live WPM, slightly dimmed, no band
-                // line — lower visual noise than paused so the word stays the hero.
+                // Hold is the clutch, not a mode: show the live WPM and the speed
+                // band, but *no* state word — never "Hold", never "Cruise". The
+                // contact-edge glow communicates the hold; the dial just reports
+                // speed. Quieter than paused so the focal word stays the hero.
                 VStack(spacing: 0) {
                     Text("\(wpm)")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
@@ -1281,8 +1405,11 @@ private struct SpeedDial: View {
                     Text("wpm")
                         .font(.system(size: 8, weight: .medium, design: .rounded))
                         .foregroundStyle(Color.readingMuted)
+                    Text(label)
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.readingForeground.opacity(0.7))
                 }
-                .opacity(0.78)
+                .opacity(0.9)
                 .fixedSize()
             }
         }
