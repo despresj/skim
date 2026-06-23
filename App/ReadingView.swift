@@ -93,25 +93,20 @@ struct ReadingView: View {
     /// hold-to-read out on the bare canvas can't drift the speed or fire a skip.
     @State private var gestureStartZone: GestureZone = .canvas
 
-    // MARK: Paused-Threadline scroll arbitration (drag scrolls, press holds)
+    // MARK: Paused-Threadline gesture arbitration (band owns its own touches)
     //
-    // Inside the paused context, a stationary press still holds-to-read while a
-    // vertical drag scrolls the context. The two share the one persistent gesture
-    // layer (so a hold's release is never lost when reading hides the context) and
-    // are told apart by movement, exactly like `possibleHold → holdingToRead |
-    // scrollingThreadline`: the press began in the context band, and the first clear
-    // vertical travel past a threshold hands control to scrolling and cancels the
-    // pending read; otherwise the hold gate fires and reads.
+    // The paused Threadline is a front interactive layer whose UITextView owns its
+    // pan (native momentum scroll), a long-press (hold-to-read), and a double-tap
+    // (Cruise). So when a press *begins inside the band*, the global surface gesture
+    // yields entirely — it never double-handles those touches.
 
-    /// Imperative handle to the paused context's scroll position.
-    @State private var contextScroller = ThreadlineScroller()
-    /// The current surface press began within the paused context band (eligible to
-    /// become a scroll).
-    @State private var gestureStartInContext = false
-    /// The press has committed to scrolling the context — no read will start.
-    @State private var contextScrolling = false
-    /// Last drag translation handed to the scroller, to apply incremental deltas.
-    @State private var lastScrollTranslation: CGFloat = 0
+    /// A press that began inside the paused Threadline band: the band's own UIKit
+    /// recognizers own it, so the surface gesture yields (no hold, no steer).
+    @State private var yieldToThreadline = false
+    /// A read that was started by a hold *inside* the Threadline band. Keeps the
+    /// band layer mounted through the hold so its long-press `.ended` can pause,
+    /// even though the reader has left `.paused`.
+    @State private var holdStartedInThreadline = false
 
     /// Fade level for the flick confirmation. Snapped to 1 on each jump, then
     /// eased back to 0 — so the label flashes and dissolves without lingering.
@@ -198,6 +193,8 @@ struct ReadingView: View {
                 bottomContent(height: geo.size.height)
 
                 readingSurfaceGestureLayer(size: geo.size)
+
+                pausedThreadlineLayer(size: geo.size)
 
                 navFlashLayer
 
@@ -387,19 +384,14 @@ struct ReadingView: View {
             // it's the taller auto-centered Threadline. Both sit in a simple reserved
             // column (no text wrapping around controls): a normal margin on the open
             // side, a wider reserve on the side the gauge / back button occupies.
-            if showsContext {
-                if viewModel.state == .paused {
-                    Threadline(viewModel: viewModel,
-                               height: threadlineHeight(height),
-                               scroller: contextScroller)
-                        .padding(.leading, leftHanded ? gaugeReserve : backReserve)
-                        .padding(.trailing, leftHanded ? backReserve : gaugeReserve)
-                        .transition(.opacity)
-                } else {
-                    ContextStrip(viewModel: viewModel)
-                        .padding(.horizontal, 28)
-                        .transition(.opacity)
-                }
+            // The paused Threadline now lives in its own front interactive layer
+            // (`pausedThreadlineLayer`) so it can own its native scroll/hold/cruise
+            // touches; only the calm `.ready` strip remains here, behind the gesture
+            // surface and non-interactive.
+            if showsContext && viewModel.state != .paused {
+                ContextStrip(viewModel: viewModel)
+                    .padding(.horizontal, 28)
+                    .transition(.opacity)
             }
             // Lift the context block well clear of the home indicator: a fixed gap
             // below it, with the progress line pinned beneath — so the prose stops
@@ -441,6 +433,58 @@ struct ReadingView: View {
         let bottom = size.height - size.height * 0.13 - 30
         let top = bottom - threadlineHeight(size.height)
         return (top - 12)...(bottom + 12)
+    }
+
+    /// Is the paused context band currently interactive on screen? Visible when
+    /// paused, and kept up through a band-initiated hold so its release can pause.
+    private var showsPausedThreadline: Bool {
+        viewModel.shouldShowContext &&
+        (viewModel.state == .paused || holdStartedInThreadline)
+    }
+
+    /// The paused Threadline as a front sibling that owns its touches (native
+    /// scroll + hold/cruise). Positioned absolutely over the same band/column the
+    /// `.ready` strip would occupy, so nothing reflows. Faded while a hold reads.
+    @ViewBuilder
+    private func pausedThreadlineLayer(size: CGSize) -> some View {
+        if showsPausedThreadline {
+            let band = contextBand(size)
+            let midY = (band.lowerBound + band.upperBound) / 2
+            let leading = leftHanded ? gaugeReserve : backReserve
+            let colWidth = max(0, size.width - gaugeReserve - backReserve)
+            Threadline(
+                viewModel: viewModel,
+                height: threadlineHeight(size.height),
+                leftHanded: leftHanded,
+                onHoldRead: {
+                    holdStartedInThreadline = true
+                    viewModel.startHolding()
+                },
+                onRelease: {
+                    viewModel.stopHolding()
+                    holdStartedInThreadline = false
+                },
+                onCruiseToggle: { viewModel.toggleCruise() },
+                onRecenter: { viewModel.recenterContext() }
+            )
+            .frame(width: colWidth, height: threadlineHeight(size.height))
+            .position(x: leading + colWidth / 2, y: midY)
+            // Fade the map while a hold streams words, so the pivot word stays hero.
+            .opacity(viewModel.state == .paused ? 1 : 0.18)
+            .animation(.easeOut(duration: 0.2), value: viewModel.state)
+            .transition(.opacity)
+        }
+    }
+
+    /// On-screen rect of the interactive paused band — used to yield the surface
+    /// gesture for presses that start inside it.
+    private func threadlineHitRect(_ size: CGSize) -> CGRect {
+        let band = contextBand(size)
+        let midY = (band.lowerBound + band.upperBound) / 2
+        let h = threadlineHeight(size.height)
+        let leading = leftHanded ? gaugeReserve : backReserve
+        let colWidth = max(0, size.width - gaugeReserve - backReserve)
+        return CGRect(x: leading, y: midY - h / 2 - 12, width: colWidth, height: h + 24)
     }
 
     // MARK: Scrubber (drag the progress line to seek)
@@ -641,13 +685,11 @@ struct ReadingView: View {
                     axis = nil
                     flickArmed = true
                     adjustingSpeed = false
-                    // Eligible to scroll the paused context: the press began in the
-                    // context band, on the bare canvas (not the steering rail).
-                    gestureStartInContext = gestureStartState == .paused
-                        && gestureStartZone == .canvas
-                        && contextBand(size).contains(value.startLocation.y)
-                    contextScrolling = false
-                    lastScrollTranslation = 0
+                    // A press that begins inside the paused Threadline band belongs
+                    // to the band's own native scroll / hold / cruise recognizers —
+                    // the surface gesture yields entirely so it never double-handles.
+                    yieldToThreadline = gestureStartState == .paused
+                        && threadlineHitRect(size).contains(value.startLocation)
                     dbg("reading surface hold start (\(gestureStartZone), \(gestureStartState))")
                     // Arm the hold-to-read timer from a resting state; in cruise the
                     // thumb only steers, so no read is ever scheduled.
@@ -656,28 +698,9 @@ struct ReadingView: View {
                     }
                 }
 
-                // Paused-context arbitration: a press that began in the context band
-                // becomes a scroll the moment vertical travel clearly wins — which
-                // cancels the pending read — but a still press falls through to the
-                // hold gate and reads. Once a read has started (state left .paused),
-                // the context is gone, so we never scroll it.
-                if gestureStartInContext {
-                    if viewModel.state == .paused {
-                        let dy = value.translation.height
-                        let dx = value.translation.width
-                        if !contextScrolling, abs(dy) > 10, abs(dy) > abs(dx) {
-                            contextScrolling = true
-                            cancelHoldRead()        // movement won: no read
-                            lastScrollTranslation = dy
-                            dbg("threadline scroll start")
-                        }
-                        if contextScrolling {
-                            let incremental = dy - lastScrollTranslation
-                            lastScrollTranslation = dy
-                            // Drag down → reveal earlier text (offset decreases).
-                            contextScroller.scroll(by: -incremental)
-                        }
-                    }
+                // The band owns its own touches; the surface gesture stays out.
+                if yieldToThreadline {
+                    cancelHoldRead()
                     return
                 }
 
@@ -770,9 +793,7 @@ struct ReadingView: View {
                 axis = nil
                 flickArmed = true
                 adjustingSpeed = false
-                gestureStartInContext = false
-                contextScrolling = false
-                lastScrollTranslation = 0
+                yieldToThreadline = false
             }
     }
 

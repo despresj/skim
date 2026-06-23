@@ -1,52 +1,55 @@
 import SwiftUI
 import UIKit
 
-/// An imperative handle the reader's drag gesture uses to scroll the context. The
-/// context view itself takes no touches (so it can never block hold/tap); instead
-/// the one persistent gesture layer drives it through this, keeping a single owner
-/// for every touch. Holds a weak ref to the live text view and clamps to bounds.
-@MainActor final class ThreadlineScroller {
-    weak var textView: UITextView?
-
-    /// Nudge the content by `dy` points, clamped to the scrollable range. Drag the
-    /// finger down (positive) to reveal earlier text (offset decreases) — call with
-    /// the negated incremental translation for natural touch scrolling.
-    func scroll(by dy: CGFloat) {
-        guard let textView, textView.bounds.height > 0 else { return }
-        let maxOffset = max(0, textView.contentSize.height - textView.bounds.height)
-        let y = min(max(0, textView.contentOffset.y + dy), maxOffset)
-        textView.setContentOffset(CGPoint(x: 0, y: y), animated: false)
-    }
-}
-
 /// The paused "where am I" surface. When the reader rests, the foot of the screen
-/// shows a calm, auto-centered window of the surrounding prose — the active word
-/// in amber, the current sentence in full ink, the rest dimmer — so you can see
-/// where you are without leaving the reading surface.
+/// shows a calm, natively scrollable window of the surrounding prose — the active
+/// word in amber, the current sentence in full ink, the rest dimmer — so you can
+/// inspect where you are without leaving the reading surface.
 ///
-/// It is a *decorative orientation strip*, deliberately simple: it never takes
-/// touches (the caller hosts it behind the gesture surface with hit-testing off),
-/// and it lays out as a plain reserved column — no text wrapping around controls.
-/// The one bit of machinery it keeps is the thing that makes it trustworthy:
+/// Native momentum is the whole point: the `UITextView` owns its own pan, so the
+/// window glides, decelerates, and rubber-bands like any iOS scroll surface. The
+/// reader's other actions (hold-to-read, double-tap Cruise) are owned here too, by
+/// UIKit gesture recognizers, so the band is a self-contained instrument.
 ///
 ///   • **Correct occurrence.** The active word is highlighted by token *index* →
 ///     character range (`ReadingContext.proseMap`), never by string search, so the
 ///     third "the" in "the the the" lights up — not the first one a search finds.
+///   • **Highlight ≠ scroll.** The highlight follows the active token every render;
+///     the viewport only re-centers on a discrete `recenterKey` bump (pause, scrub,
+///     flick, locator tap), so free manual scrolling never snaps back.
 struct Threadline: View {
     let viewModel: ReaderViewModel
-    /// Fixed viewport height — sized by the caller to the screen so the block
-    /// never collides with the pivot word up top or the progress cluster below.
+    /// Fixed viewport height — sized by the caller so the block never collides with
+    /// the pivot word up top or the progress cluster below.
     let height: CGFloat
-    /// Handle the reader's drag gesture uses to scroll this (the view stays
-    /// non-interactive; the persistent gesture layer drives it).
-    let scroller: ThreadlineScroller
+    /// Which hand holds the gauge — places the locator on the open side.
+    let leftHanded: Bool
+    /// A still press-and-hold crossed the read gate: start reading.
+    let onHoldRead: () -> Void
+    /// The read-initiating hold lifted: pause.
+    let onRelease: () -> Void
+    /// A clean double tap: toggle Cruise.
+    let onCruiseToggle: () -> Void
+    /// The locator was tapped: re-center on the active word.
+    let onRecenter: () -> Void
+
+    /// True once the user has scrolled the active word out of the comfortable
+    /// central band — drives the amber "back to word" locator. Owned here, fed by
+    /// the text view's scroll callback.
+    @State private var offCenter = false
 
     var body: some View {
         ThreadlineTextView(
             tokens: viewModel.tokens,
             activeIndex: viewModel.currentIndex,
             recenterKey: viewModel.contextRecenterTick,
-            scroller: scroller
+            onHoldRead: onHoldRead,
+            onRelease: onRelease,
+            onCruiseToggle: onCruiseToggle,
+            onOffCenterChange: { off in
+                // Cheap: only flips when the active word crosses the comfort band.
+                if off != offCenter { offCenter = off }
+            }
         )
         .frame(maxWidth: .infinity)
         .frame(height: height)
@@ -64,26 +67,53 @@ struct Threadline: View {
                 endPoint: .bottom
             )
         )
+        // The "back to word" locator: a small amber glyph on the open side, shown
+        // only once the active word has scrolled out of view. Tapping re-centers.
+        .overlay(alignment: leftHanded ? .bottomTrailing : .bottomLeading) {
+            if offCenter {
+                Button(action: onRecenter) {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.readingAccent)
+                        .frame(width: 34, height: 34)
+                        .background(Color.readingSurface.opacity(0.85), in: Circle())
+                        .overlay(Circle().stroke(Color.readingBorder, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back to current word")
+                .padding(10)
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: offCenter)
     }
 }
 
-/// A `UITextView` bridge: renders the full clean prose as one attributed string,
-/// highlights the active token's range, and scrolls that range to the vertical
-/// center. TextKit handles long single paragraphs (500+ words) cheaply and gives
-/// the exact glyph rect needed to center precisely. The view never takes touches
-/// (`isUserInteractionEnabled = false`); centering is purely programmatic, so it
-/// can never block the reader's tap/hold/flick gestures.
+/// A natively scrollable `UITextView` bridge. Renders the full clean prose as one
+/// attributed string, highlights the active token's range, scrolls that range to
+/// slightly-above-center on a `recenterKey` bump, and owns the band's gesture
+/// recognizers (long-press → read, double-tap → Cruise). TextKit handles long
+/// single paragraphs (500+ words) cheaply and gives the exact glyph rect needed to
+/// center precisely.
 private struct ThreadlineTextView: UIViewRepresentable {
     let tokens: [ReadingToken]
     let activeIndex: Int
-    /// Bumped by the view model on each pause/scrub, so the window recenters on the
-    /// active word whenever the reader settles or scrubs.
+    /// Bumped by the view model on each pause/scrub/flick/locator-tap; the window
+    /// re-centers on the active word only when this changes.
     let recenterKey: Int
-    /// Registered with the live text view so the reader's drag can scroll it.
-    let scroller: ThreadlineScroller
+    let onHoldRead: () -> Void
+    let onRelease: () -> Void
+    let onCruiseToggle: () -> Void
+    let onOffCenterChange: (Bool) -> Void
 
-    // Calm, rounded body type matching the reading surface. Scaled for Dynamic
-    // Type via UIFontMetrics.
+    // Tunables (see plan Global Constraints).
+    private static let minHoldToRead: TimeInterval = 0.12
+    private static let holdAllowableMovement: CGFloat = 10
+    private static let recenterBias: CGFloat = 0.40       // active word 40% down
+    private static let comfortLow: CGFloat = 0.20         // off-center below this…
+    private static let comfortHigh: CGFloat = 0.60        // …or above this
+
+    // Calm, rounded body type matching the reading surface. Scaled for Dynamic Type.
     private static func font(bold: Bool) -> UIFont {
         let base = UIFont.systemFont(ofSize: 18, weight: bold ? .semibold : .regular)
         let rounded = base.fontDescriptor.withDesign(.rounded).map {
@@ -100,17 +130,74 @@ private struct ThreadlineTextView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    final class Coordinator {
-        /// Identity of the currently rendered token set, so the attributed string
-        /// is rebuilt only when the text actually changes.
+    /// Owns recognizer targets + scroll delegate, and caches what is needed to
+    /// recompute the active range's on-screen position as the user scrolls.
+    final class Coordinator: NSObject, UITextViewDelegate, UIScrollViewDelegate, UIGestureRecognizerDelegate {
         var signature = ""
         var map = ReadingContext.ProseMap(text: "", ranges: [])
-        /// The active sentence's range, lit to full ink last render — reset to dim
-        /// before lighting the next. (It contains the active word, so resetting it
-        /// also clears the old amber word in one stroke.)
         var previousSentence: NSRange?
         var lastRecenterKey = Int.min
         var lastActiveIndex = Int.min
+        /// Range currently highlighted active — its rect drives off-center detection.
+        var activeRange = NSRange(location: NSNotFound, length: 0)
+        /// True between long-press `.began` and its end: a read started from the band.
+        var didHoldRead = false
+        /// Latched off-center value, so the SwiftUI binding only fires on a change.
+        var reportedOffCenter = false
+
+        // Closures refreshed every `updateUIView` so they never go stale.
+        var onHoldRead: () -> Void = {}
+        var onRelease: () -> Void = {}
+        var onCruiseToggle: () -> Void = {}
+        var onOffCenterChange: (Bool) -> Void = { _ in }
+        var recenterBias: CGFloat = 0.40
+        var comfortLow: CGFloat = 0.20
+        var comfortHigh: CGFloat = 0.60
+        weak var textView: UITextView?
+
+        @objc func handleLongPress(_ gr: UILongPressGestureRecognizer) {
+            switch gr.state {
+            case .began:
+                didHoldRead = true
+                onHoldRead()
+            case .ended, .cancelled, .failed:
+                if didHoldRead { onRelease() }
+                didHoldRead = false
+            default:
+                break
+            }
+        }
+
+        @objc func handleDoubleTap(_ gr: UITapGestureRecognizer) {
+            onCruiseToggle()
+        }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            updateOffCenter()
+        }
+
+        /// Where the active word's vertical mid-point sits in the viewport (0 = top,
+        /// 1 = bottom); off-center when it leaves the comfort band or scrolls away.
+        func updateOffCenter() {
+            guard let tv = textView, tv.bounds.height > 0,
+                  activeRange.location != NSNotFound else { return }
+            let layout = tv.layoutManager
+            let glyphRange = layout.glyphRange(forCharacterRange: activeRange, actualCharacterRange: nil)
+            var rect = layout.boundingRect(forGlyphRange: glyphRange, in: tv.textContainer)
+            rect.origin.y += tv.textContainerInset.top
+            let frac = (rect.midY - tv.contentOffset.y) / tv.bounds.height
+            let off = frac < comfortLow || frac > comfortHigh
+            if off != reportedOffCenter {
+                reportedOffCenter = off
+                onOffCenterChange(off)
+            }
+        }
+
+        // Let the scroll view's pan run alongside our recognizers.
+        func gestureRecognizer(_ g: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            true
+        }
     }
 
     func makeUIView(context: Context) -> UITextView {
@@ -126,20 +213,48 @@ private struct ThreadlineTextView: UIViewRepresentable {
         let textView = UITextView(frame: .zero, textContainer: container)
         textView.isEditable = false
         textView.isSelectable = false
-        // Never takes touches — purely decorative orientation. The reader gesture
-        // surface beneath owns every tap/hold; centering is programmatic.
-        textView.isUserInteractionEnabled = false
+        // Interactive + natively scrollable: this is what buys momentum/bounce.
+        textView.isUserInteractionEnabled = true
+        textView.isScrollEnabled = true
+        textView.alwaysBounceVertical = true
+        textView.showsVerticalScrollIndicator = true
+        textView.indicatorStyle = .white
+        textView.delaysContentTouches = false
         textView.backgroundColor = .clear
-        textView.showsVerticalScrollIndicator = false
         textView.contentInsetAdjustmentBehavior = .never
         textView.textContainerInset = UIEdgeInsets(top: 10, left: 0, bottom: 10, right: 0)
-        scroller.textView = textView
+
+        let coord = context.coordinator
+        coord.textView = textView
+        textView.delegate = coord
+
+        // Hold-to-read: a still press past the gate starts reading; moving past the
+        // small allowance fails this and the scroll pan wins.
+        let longPress = UILongPressGestureRecognizer(target: coord, action: #selector(Coordinator.handleLongPress(_:)))
+        longPress.minimumPressDuration = Self.minHoldToRead
+        longPress.allowableMovement = Self.holdAllowableMovement
+        longPress.delegate = coord
+        textView.addGestureRecognizer(longPress)
+
+        // Double-tap → Cruise. A clean quick double tap won't trip the longer press.
+        let doubleTap = UITapGestureRecognizer(target: coord, action: #selector(Coordinator.handleDoubleTap(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        doubleTap.delegate = coord
+        textView.addGestureRecognizer(doubleTap)
+
         return textView
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
         let coord = context.coordinator
-        scroller.textView = textView
+        coord.textView = textView
+        coord.onHoldRead = onHoldRead
+        coord.onRelease = onRelease
+        coord.onCruiseToggle = onCruiseToggle
+        coord.onOffCenterChange = onOffCenterChange
+        coord.recenterBias = Self.recenterBias
+        coord.comfortLow = Self.comfortLow
+        coord.comfortHigh = Self.comfortHigh
 
         // Rebuild the prose + ranges only when the token set changes.
         let signature = "\(tokens.first?.id.uuidString ?? "")#\(tokens.count)"
@@ -154,13 +269,13 @@ private struct ThreadlineTextView: UIViewRepresentable {
 
         guard coord.map.ranges.indices.contains(activeIndex) else { return }
         let active = coord.map.ranges[activeIndex]
+        coord.activeRange = active
 
         let indexChanged = activeIndex != coord.lastActiveIndex
         let keyChanged = recenterKey != coord.lastRecenterKey
-        guard indexChanged || keyChanged else { return }
 
-        // Light the current sentence to full ink, then the active word in amber —
-        // editing the storage in place (not reassigning text) preserves position.
+        // Highlight follows the active token every time it changes — independent of
+        // scrolling, so the amber word is always correct even mid-scroll.
         if indexChanged {
             let sentence = sentenceRange(activeIndex: activeIndex, map: coord.map)
             let storage = textView.textStorage
@@ -175,14 +290,17 @@ private struct ThreadlineTextView: UIViewRepresentable {
             storage.addAttribute(.font, value: Self.font(bold: true), range: active)
             storage.endEditing()
             coord.previousSentence = sentence
+            coord.lastActiveIndex = activeIndex
         }
 
-        coord.lastActiveIndex = activeIndex
-        coord.lastRecenterKey = recenterKey
-
-        // Center after layout settles.
-        DispatchQueue.main.async {
-            center(textView, on: active)
+        // Re-center ONLY on a discrete recenter bump — never just because the active
+        // index moved — so free manual scrolling is never yanked back.
+        if keyChanged {
+            coord.lastRecenterKey = recenterKey
+            DispatchQueue.main.async {
+                center(textView, on: active, bias: Self.recenterBias)
+                coord.updateOffCenter()
+            }
         }
     }
 
@@ -213,10 +331,11 @@ private struct ThreadlineTextView: UIViewRepresentable {
         return NSRange(location: start, length: end - start)
     }
 
-    /// Scroll so the active range sits at the vertical center, clamped to the
-    /// scrollable bounds. The clamp alone handles begin (pins near top), end (pins
-    /// at bottom), and text shorter than the viewport (nothing to scroll).
-    private func center(_ textView: UITextView, on range: NSRange) {
+    /// Scroll so the active range sits `bias` of the way down the viewport (0.40 =
+    /// slightly above center), clamped to the scrollable bounds. The clamp alone
+    /// handles begin (pins near top), end (pins at bottom), and text shorter than
+    /// the viewport (nothing to scroll).
+    private func center(_ textView: UITextView, on range: NSRange, bias: CGFloat) {
         guard textView.bounds.height > 0, range.location != NSNotFound else { return }
         let layout = textView.layoutManager
         layout.ensureLayout(for: textView.textContainer)
@@ -225,9 +344,9 @@ private struct ThreadlineTextView: UIViewRepresentable {
         var rect = layout.boundingRect(forGlyphRange: glyphRange, in: textView.textContainer)
         rect.origin.y += textView.textContainerInset.top
 
-        let target = rect.midY - textView.bounds.height / 2
+        let target = rect.midY - textView.bounds.height * bias
         let maxOffset = max(0, textView.contentSize.height - textView.bounds.height)
         let y = min(max(0, target), maxOffset)
-        textView.setContentOffset(CGPoint(x: 0, y: y), animated: false)
+        textView.setContentOffset(CGPoint(x: 0, y: y), animated: true)
     }
 }
