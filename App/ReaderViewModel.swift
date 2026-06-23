@@ -20,6 +20,14 @@ final class ReaderViewModel {
     private(set) var contextRecenterTick = 0
     private func bumpRecenter() { contextRecenterTick += 1 }
 
+    /// The reader asked to re-center the paused context on the active word (tapped
+    /// the "back to word" locator). Only meaningful while paused — the context is
+    /// hidden otherwise. Drives `contextRecenterTick`, the one recenter signal.
+    func recenterContext() {
+        guard state == .paused else { return }
+        bumpRecenter()
+    }
+
     /// Current reading speed. Adjusted live by sliding the thumb vertically
     /// during a hold (see `setBandIndex`).
     private(set) var band: SpeedBand = .cruise
@@ -585,6 +593,7 @@ final class ReaderViewModel {
         emitNavFlash(.back, moved: from - currentIndex)
         haptics.tick(.rewind)
         restartPlaybackIfPlaying()
+        if state == .paused { bumpRecenter() }
     }
 
     /// Flick right: jump ahead a fixed step. Clamped at the last word.
@@ -596,6 +605,7 @@ final class ReaderViewModel {
         emitNavFlash(.forward, moved: currentIndex - from)
         haptics.tick(.forward)
         restartPlaybackIfPlaying()
+        if state == .paused { bumpRecenter() }
     }
 
     /// Publish a flick confirmation. A jump that moved nothing (already pinned at
