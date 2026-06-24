@@ -1757,11 +1757,13 @@ private struct SpeedTrack: View {
                     Capsule().fill(accent.opacity(0.5))
                         .frame(width: 4, height: max(0, h * fraction))
                 }
-                Circle()
+                // A slim amber pill, only a touch wider than the track — reads as a
+                // brightened segment of the bar, not a knob floating over it. Calm by
+                // default; a faint glow lifts it only while dragging.
+                Capsule()
                     .fill(accent)
-                    .frame(width: 28, height: 28)
-                    .overlay(Circle().stroke(Color.readingSurface, lineWidth: 1.5))
-                    .shadow(color: accent.opacity(dragging ? 0.55 : 0), radius: 7)
+                    .frame(width: 8, height: 22)
+                    .shadow(color: accent.opacity(dragging ? 0.4 : 0), radius: 5)
                     .position(x: geo.size.width / 2, y: (1 - fraction) * h)
                     .animation(.easeOut(duration: 0.14), value: fraction)
             }
