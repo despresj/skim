@@ -18,8 +18,12 @@ struct ReadingView: View {
     @State private var showCopied = false
 
     /// True once the active word has scrolled out of the Threadline comfort band —
-    /// fed up from `Threadline`, drives the edge-lane return-to-word button.
+    /// fed up from `Threadline`, drives the "Current word" recenter pill.
     @State private var offCenter = false
+
+    /// Whether the recenter pill shows its "Current word" label — true when it first
+    /// appears, then collapses to icon-only after a beat to stay calm.
+    @State private var recenterExpanded = false
 
     /// The Export Questions sheet for the current read, built lazily so it captures
     /// the read's text, title, and current WPM at the moment it opens.
@@ -541,21 +545,32 @@ struct ReadingView: View {
         }
     }
 
-    /// The return-to-word control, a soft circular button tucked into the bottom-right
-    /// corner — in the clear gap below the Threadline band and above the progress
-    /// cluster, so it never sits over prose. Shown only while paused and the active
-    /// word has scrolled out of the comfort band; tapping smoothly recenters. The
-    /// paused state carries no speed control — speed is set while reading.
+    /// The "Current word" locator — a soft pill in the bottom-right corner (in the
+    /// clear gap below the Threadline band and above the progress cluster, so it
+    /// never sits over prose). A `scope` crosshair reads as "center on this," not a
+    /// send/jump arrow. Shown only while paused and the active word has scrolled out
+    /// of the comfort band; tapping smooth-scrolls the band back to the active token
+    /// (with a soft haptic). Appears as the full labeled pill, then collapses to
+    /// icon-only after a beat to stay calm.
     @ViewBuilder
     private var recenterButton: some View {
         if viewModel.state == .paused && viewModel.shouldShowContext && offCenter {
             Button { viewModel.recenterContext() } label: {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.readingAccent)
-                    .frame(width: 44, height: 44)
-                    .background(Color.readingSurface.opacity(0.85), in: Circle())
-                    .overlay(Circle().stroke(Color.readingBorder, lineWidth: 1))
+                HStack(spacing: 6) {
+                    Image(systemName: "scope")
+                        .font(.system(size: 15, weight: .semibold))
+                    if recenterExpanded {
+                        Text("Current word")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .fixedSize()
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    }
+                }
+                .foregroundStyle(Color.readingAccent)
+                .padding(.horizontal, recenterExpanded ? 14 : 0)
+                .frame(minWidth: 44, minHeight: 44)
+                .background(Color.readingSurface.opacity(0.85), in: Capsule())
+                .overlay(Capsule().stroke(Color.readingBorder, lineWidth: 1))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Back to current word")
@@ -564,6 +579,15 @@ struct ReadingView: View {
             .padding(.bottom, 64)
             .transition(.opacity)
             .animation(.easeOut(duration: 0.2), value: offCenter)
+            .animation(.easeInOut(duration: 0.25), value: recenterExpanded)
+            // Appear labeled, then collapse to icon-only after a beat. The task is
+            // bound to the pill's presence (offCenter), so each fresh scroll-away
+            // re-expands it, and recentering cancels it cleanly.
+            .task(id: offCenter) {
+                recenterExpanded = true
+                try? await Task.sleep(for: .seconds(1.5))
+                if !Task.isCancelled { recenterExpanded = false }
+            }
         }
     }
 

@@ -26,6 +26,7 @@ final class ReaderViewModel {
     func recenterContext() {
         guard state == .paused else { return }
         bumpRecenter()
+        haptics.tick(.recenter)
     }
 
     /// Current reading speed. Adjusted live by sliding the thumb vertically

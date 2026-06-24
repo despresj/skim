@@ -13,6 +13,7 @@ final class Haptics {
         case finish      // reached the end
         case newText     // loaded freshly copied text via the "new text" chip
         case copy        // copied the full read text to the clipboard
+        case recenter    // tapped "Current word" to recenter the paused context
         case scrubTick   // crossed a quarter mark while dragging the progress bar
     }
 
@@ -55,6 +56,7 @@ final class Haptics {
         case .finish:     heavy.impactOccurred()
         case .newText:    soft.impactOccurred(intensity: 0.6)
         case .copy:       soft.impactOccurred(intensity: 0.5)
+        case .recenter:   soft.impactOccurred(intensity: 0.5)
         case .scrubTick:  light.impactOccurred(intensity: 0.4)
         }
     }
