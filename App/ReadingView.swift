@@ -46,10 +46,6 @@ struct ReadingView: View {
     /// breathing room. Mirrors to the leading edge in left-hand mode.
     private let gaugeZoneWidth: CGFloat = 118
 
-    /// Width (points) of the slim lane on the reading-hand edge that carries the
-    /// return-to-word button while paused. The Threadline reclaims the rest of the
-    /// old gauge zone — the paused state shows no speed control.
-    private let recenterLaneWidth: CGFloat = 48
 
     /// Vertical travel (points) that spans the entire speed range, so the full
     /// slow→fast sweep is reachable in one comfortable thumb slide no matter how
@@ -212,7 +208,7 @@ struct ReadingView: View {
 
                 controlZone(width: gaugeZoneWidth)
 
-                recenterButtonLayer(size: geo.size)
+                recenterButton
 
                 topBar
 
@@ -472,12 +468,12 @@ struct ReadingView: View {
         .animation(.easeOut(duration: 0.25), value: viewModel.state)
     }
 
-    /// Text reserve on the reading-hand side. While paused only the slim return-to-word
-    /// lane stands on this edge (no speed control), so the paused Threadline column
-    /// reclaims the width; every other state keeps the full gauge zone. Consumed only
-    /// by the paused Threadline layout + hit-rect, so this is localized to paused mode.
+    /// Text reserve on the reading-hand side. Paused has no control in the text band
+    /// (the recenter button sits in the bottom-right corner, below it), so the column
+    /// gets a plain margin and the full width; only active-reading's dial needs the
+    /// wide gauge zone. Consumed only by the paused Threadline layout + hit-rect.
     private var gaugeReserve: CGFloat {
-        viewModel.state == .paused ? recenterLaneWidth : gaugeZoneWidth
+        viewModel.state == .paused ? backReserve : gaugeZoneWidth
     }
     /// Margin on the edge opposite the speed control. The back chevron that used to
     /// sit here has moved to the top bar, so this is now just a calm text margin
@@ -545,28 +541,27 @@ struct ReadingView: View {
         }
     }
 
-    /// The return-to-word control, docked in a slim lane on the reading-hand edge and
-    /// riding at the active word's rest line (~40% down the band). Shown only while
-    /// paused and the active word has scrolled out of the comfort band; tapping
-    /// smoothly recenters. The paused state carries no speed control — speed is set
-    /// while reading. Mirrors L/R like the Threadline column.
+    /// The return-to-word control, a soft circular button tucked into the bottom-right
+    /// corner — in the clear gap below the Threadline band and above the progress
+    /// cluster, so it never sits over prose. Shown only while paused and the active
+    /// word has scrolled out of the comfort band; tapping smoothly recenters. The
+    /// paused state carries no speed control — speed is set while reading.
     @ViewBuilder
-    private func recenterButtonLayer(size: CGSize) -> some View {
+    private var recenterButton: some View {
         if viewModel.state == .paused && viewModel.shouldShowContext && offCenter {
-            let band = contextBand(size)
-            let y = band.lowerBound + (band.upperBound - band.lowerBound) * 0.40
-            let x = leftHanded ? recenterLaneWidth / 2 : size.width - recenterLaneWidth / 2
             Button { viewModel.recenterContext() } label: {
                 Image(systemName: "location.fill")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.readingAccent)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 44, height: 44)
                     .background(Color.readingSurface.opacity(0.85), in: Circle())
                     .overlay(Circle().stroke(Color.readingBorder, lineWidth: 1))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Back to current word")
-            .position(x: x, y: y)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .padding(.trailing, 16)
+            .padding(.bottom, 64)
             .transition(.opacity)
             .animation(.easeOut(duration: 0.2), value: offCenter)
         }
