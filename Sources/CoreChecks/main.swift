@@ -942,6 +942,28 @@ do {
                 .duplicateQuestion(first: 0, second: 1), "rejects duplicate questions")
 }
 
+print("ComprehensionChunking")
+do {
+    let short = "word " + String(repeating: "lorem ", count: 100)   // ~101 words
+    expectEqual(ComprehensionChunking.sampleForGeneration(short), short, "short text passes through unchanged")
+
+    // Build a long doc: 200 short paragraphs, ~30 words each ≈ 6000 words.
+    let paras = (0..<200).map { p in "Paragraph \(p) " + String(repeating: "alpha beta gamma. ", count: 8) }
+    let long = paras.joined(separator: "\n\n")
+    expect(ComprehensionChunking.wordCount(long) > ComprehensionChunking.fullTextWordLimit, "long doc exceeds limit")
+
+    let sample = ComprehensionChunking.sampleForGeneration(long)
+    expect(sample != long, "long text is sampled, not sent whole")
+    expect(ComprehensionChunking.wordCount(sample) < ComprehensionChunking.wordCount(long),
+           "sample is smaller than the source")
+    expect(sample.contains("Paragraph 0"), "sample includes the beginning")
+    expect(sample.contains("Paragraph 199") || sample.contains("Paragraph 198"),
+           "sample includes the ending")
+    // Whole paragraphs only → it never ends a chunk on a bare 'alpha beta' mid-sentence
+    // fragment; every excerpt boundary falls on a paragraph we pulled whole.
+    expect(sample.contains("[…]"), "excerpts are joined with an elision marker")
+}
+
 print("")
 if failures.isEmpty {
     print("All checks passed ✅")
