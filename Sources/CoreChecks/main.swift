@@ -1005,6 +1005,22 @@ do {
     expectEqual(none.headline, "Nothing scored yet.", "neutral headline when unscored")
 }
 
+print("APIKeyStore")
+do {
+    let store = InMemoryAPIKeyStore()
+    expect(!store.hasOpenAIKey(), "starts empty")
+    expectEqual(try! store.loadOpenAIKey(), nil, "no key to load")
+    expectEqual(store.maskedKey(), nil, "no mask when empty")
+
+    try! store.saveOpenAIKey("sk-test-1234567890abcd")
+    expect(store.hasOpenAIKey(), "has key after save")
+    expectEqual(try! store.loadOpenAIKey(), "sk-test-1234567890abcd", "loads saved key verbatim")
+    expectEqual(store.maskedKey(), "sk-••••••abcd", "masks all but last 4")
+
+    try! store.deleteOpenAIKey()
+    expect(!store.hasOpenAIKey(), "key gone after delete")
+}
+
 print("")
 if failures.isEmpty {
     print("All checks passed ✅")
