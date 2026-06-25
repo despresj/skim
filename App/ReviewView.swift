@@ -90,9 +90,9 @@ struct ReviewView: View {
             .buttonStyle(PrimaryPillStyle())
 
             Button {
-                viewModel.clearText()
+                viewModel.openRecents()
             } label: {
-                Label("New Text", systemImage: "doc.on.clipboard")
+                Label("Back to Recents", systemImage: "clock.arrow.circlepath")
             }
             .buttonStyle(SecondaryPillStyle())
         }
