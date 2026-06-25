@@ -979,12 +979,14 @@ do {
     expectEqual(all.correct, 3, "all correct counted")
     expectEqual(all.scored, 3, "all scored")
     expectEqual(all.headline, "Clean comprehension.", "100% headline")
+    expectEqual(all.guidance, "Your current speed looks good for this kind of text.", "100% guidance verbatim")
 
     // 2/3 → middle band.
     let two = ComprehensionScoring.result(questions: [q1, q2, q3],
                 answers: [q1.id: .a, q2.id: .b, q3.id: .a])
     expectEqual(two.correct, 2, "two correct")
     expectEqual(two.headline, "Mostly kept the thread.", "~67% headline")
+    expectEqual(two.guidance, "Consider slowing slightly for dense reads.", "~67% guidance verbatim")
 
     // 1/3 → bottom band, softened copy (not "Too fast").
     let one = ComprehensionScoring.result(questions: [q1, q2, q3],
@@ -1003,6 +1005,7 @@ do {
     let none = ComprehensionScoring.result(questions: [q1, q2], answers: [:])
     expectEqual(none.scored, 0, "no answers → nothing scored")
     expectEqual(none.headline, "Nothing scored yet.", "neutral headline when unscored")
+    expectEqual(none.guidance, "", "unscored guidance is empty")
 }
 
 print("APIKeyStore")
@@ -1055,6 +1058,10 @@ do {
     // Answers persist and read back as a map.
     try! store.recordAnswer(questionId: q.id, selectedChoice: .b, isCorrect: true, answeredAt: now)
     expectEqual(try! store.answers(forCheckId: check.id), [q.id: .b], "answer round-trips")
+
+    // Re-answering the same question overwrites (ON CONFLICT upsert), not duplicates.
+    try! store.recordAnswer(questionId: q.id, selectedChoice: .c, isCorrect: false, answeredAt: now)
+    expectEqual(try! store.answers(forCheckId: check.id), [q.id: .c], "re-answer overwrites the prior choice")
 
     // Batch index increments for generate-more under a parent.
     expectEqual(try! store.nextBatchIndex(parentCheckId: check.id), 1, "first follow-up batch is index 1")
