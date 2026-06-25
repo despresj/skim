@@ -41,7 +41,7 @@ public enum ComprehensionScoring {
             guidance = "Your current speed looks good for this kind of text."
         } else if percent <= 1.0 / 3.0 {
             headline = "Thread got shaky."
-            guidance = "This one may have been too fast. Try dropping 50–100 WPM on similar text."
+            guidance = "This one may have been too fast. Try dropping 50\u{2013}100 WPM on similar text."
         } else {
             headline = "Mostly kept the thread."
             guidance = "Consider slowing slightly for dense reads."
