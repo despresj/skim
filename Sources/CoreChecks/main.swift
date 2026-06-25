@@ -888,6 +888,60 @@ do {
     expectEqual(QuoteNormalize.normalize(once), once, "normalize is idempotent")
 }
 
+print("ComprehensionValidation")
+do {
+    let source = """
+    Skim helps users finish long text faster without feeling lost. If getting text into the
+    app is not instant, it becomes a cool demo instead of a daily reflex that people reach for.
+    """
+    func q(_ quote: String,
+           choices: ComprehensionChoices = .init(a: "one", b: "two", c: "three", d: "four"),
+           question: String = "What is the main point?",
+           explanation: String = "Because the passage says so.") -> ComprehensionQuestionDraft {
+        .init(question: question, choices: choices, correctChoice: .a,
+              explanation: explanation, supportingQuote: quote, type: .mainPoint)
+    }
+
+    // A clean, grounded, right-length quote (10 words) passes. It's a contiguous
+    // prefix of the source, ending just before the first period.
+    let good = ComprehensionCheckDraft(questions: [q("Skim helps users finish long text faster without feeling lost")])
+    expect(ComprehensionValidation.validate(good, requestedCount: 1, sourceText: source).isEmpty,
+           "valid grounded draft passes")
+
+    // A real excerpt with a non-breaking space spliced in still grounds — the NBSP
+    // normalizes to a regular space before the substring check.
+    let typo = ComprehensionCheckDraft(questions: [q("becomes a cool demo instead of a daily\u{00A0}reflex that people reach for")])
+    expect(ComprehensionValidation.validate(typo, requestedCount: 1, sourceText: source).isEmpty,
+           "typography-tolerant grounding accepts a real excerpt")
+
+    // Wrong count.
+    expectEqual(ComprehensionValidation.validate(good, requestedCount: 2, sourceText: source).first,
+                .wrongCount(got: 1, want: 2), "rejects wrong count")
+
+    // Fabricated quote (not in source).
+    let fake = ComprehensionCheckDraft(questions: [q("the quick brown fox jumped over the lazy sleeping dog twice")])
+    expectEqual(ComprehensionValidation.validate(fake, requestedCount: 1, sourceText: source).first,
+                .quoteNotGrounded(index: 0), "rejects ungrounded quote")
+
+    // Too-short quote (3 words).
+    let short = ComprehensionCheckDraft(questions: [q("Skim helps users")])
+    expectEqual(ComprehensionValidation.validate(short, requestedCount: 1, sourceText: source).first,
+                .quoteWrongLength(index: 0, words: 3), "rejects sub-8-word quote")
+
+    // Duplicate answer choices within a question.
+    let dupChoice = ComprehensionCheckDraft(questions: [q(
+        "Skim helps users finish long text faster without feeling lost",
+        choices: .init(a: "same", b: "same", c: "x", d: "y"))])
+    expectEqual(ComprehensionValidation.validate(dupChoice, requestedCount: 1, sourceText: source).first,
+                .duplicateChoices(index: 0), "rejects duplicate choices")
+
+    // Duplicate questions across the set.
+    let g = q("Skim helps users finish long text faster without feeling lost")
+    let dupQ = ComprehensionCheckDraft(questions: [g, g])
+    expectEqual(ComprehensionValidation.validate(dupQ, requestedCount: 2, sourceText: source).first,
+                .duplicateQuestion(first: 0, second: 1), "rejects duplicate questions")
+}
+
 print("")
 if failures.isEmpty {
     print("All checks passed ✅")
