@@ -671,6 +671,12 @@ struct ReadingView: View {
     /// decision in `ReaderGestures.tapIntent` (not inline here) is what lets the core
     /// suite verify the semantics on both hand modes without a device.
     private func dispatchSurfaceTap(_ tap: SurfaceTap) {
+        // A tap that landed on the dial/rail is a fumbled speed-steer, not a brake:
+        // the rail's job is the slide/flick, so swallow its taps rather than let one
+        // pause cruise (or toggle it). `gestureStartZone` is set on touch-down by the
+        // simultaneous drag, so it's the *this-tap* zone by the time a tap resolves.
+        // Braking stays trivially reachable — the whole canvas outside the thin rail.
+        if gestureStartZone == .rail { return }
         let intent = ReaderGestures.tapIntent(tap, state: viewModel.state)
         dbg(tap == .double ? "reading surface double tap → cruise (\(intent))"
                            : "reading surface single tap → brake (\(intent))")
