@@ -964,6 +964,47 @@ do {
     expect(sample.contains("[…]"), "excerpts are joined with an elision marker")
 }
 
+print("ComprehensionScoring")
+do {
+    let choices = ComprehensionChoices(a: "a", b: "b", c: "c", d: "d")
+    func mk(_ correct: ChoiceKey, disputed: Bool = false) -> ComprehensionQuestion {
+        ComprehensionQuestion(question: "Q", choices: choices, correctChoice: correct,
+                              explanation: "e", supportingQuote: "q", type: .mainPoint, disputed: disputed)
+    }
+    let q1 = mk(.a), q2 = mk(.b), q3 = mk(.c)
+
+    // 3/3 → top band.
+    let all = ComprehensionScoring.result(questions: [q1, q2, q3],
+                answers: [q1.id: .a, q2.id: .b, q3.id: .c])
+    expectEqual(all.correct, 3, "all correct counted")
+    expectEqual(all.scored, 3, "all scored")
+    expectEqual(all.headline, "Clean comprehension.", "100% headline")
+
+    // 2/3 → middle band.
+    let two = ComprehensionScoring.result(questions: [q1, q2, q3],
+                answers: [q1.id: .a, q2.id: .b, q3.id: .a])
+    expectEqual(two.correct, 2, "two correct")
+    expectEqual(two.headline, "Mostly kept the thread.", "~67% headline")
+
+    // 1/3 → bottom band, softened copy (not "Too fast").
+    let one = ComprehensionScoring.result(questions: [q1, q2, q3],
+                answers: [q1.id: .a, q2.id: .a, q3.id: .a])
+    expectEqual(one.headline, "Thread got shaky.", "≤33% headline is softened")
+    expect(one.guidance.contains("50–100 WPM"), "≤33% guidance suggests dropping WPM")
+
+    // A disputed wrong answer is excluded from the denominator: 2 correct of 2 scored → top.
+    let disputed = mk(.d, disputed: true)
+    let withDispute = ComprehensionScoring.result(questions: [q1, q2, disputed],
+                answers: [q1.id: .a, q2.id: .b, disputed.id: .a])   // disputed answered wrong
+    expectEqual(withDispute.scored, 2, "disputed question excluded from denominator")
+    expectEqual(withDispute.headline, "Clean comprehension.", "disputed wrong answer can't force a low score")
+
+    // Nothing answered yet.
+    let none = ComprehensionScoring.result(questions: [q1, q2], answers: [:])
+    expectEqual(none.scored, 0, "no answers → nothing scored")
+    expectEqual(none.headline, "Nothing scored yet.", "neutral headline when unscored")
+}
+
 print("")
 if failures.isEmpty {
     print("All checks passed ✅")
