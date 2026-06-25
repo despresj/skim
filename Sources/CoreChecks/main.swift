@@ -829,6 +829,47 @@ do {
     expectEqual(draft.questions[0].type, .mainPoint, "draft decodes type from snake_case")
 }
 
+print("QuestionPlan")
+do {
+    expectEqual(QuestionPlan.initialQuestionCount(wordCount: 149), 0, "<150 → no check")
+    expectEqual(QuestionPlan.initialQuestionCount(wordCount: 150), 1, "150 → 1 (manual)")
+    expectEqual(QuestionPlan.initialQuestionCount(wordCount: 349), 1, "349 → 1")
+    expectEqual(QuestionPlan.initialQuestionCount(wordCount: 350), 2, "350 → 2")
+    expectEqual(QuestionPlan.initialQuestionCount(wordCount: 900), 3, "900 → 3")
+    expectEqual(QuestionPlan.initialQuestionCount(wordCount: 1999), 3, "1999 → 3")
+    expectEqual(QuestionPlan.initialQuestionCount(wordCount: 2000), 5, "2000 → 5")
+    expectEqual(QuestionPlan.initialQuestionCount(wordCount: 50000), 5, "huge → 5")
+
+    expectEqual(QuestionPlan.types(forCount: 1), [.mainPoint], "1 → main point")
+    expectEqual(QuestionPlan.types(forCount: 2), [.mainPoint, .supportingDetail], "2 → main+support")
+    expectEqual(QuestionPlan.types(forCount: 3), [.mainPoint, .supportingDetail, .implication], "3 → +implication")
+    expectEqual(QuestionPlan.types(forCount: 5),
+                [.mainPoint, .supportingDetail, .supportingDetail, .implication, .implication],
+                "5 → main, 2x support, 2x implication")
+    expectEqual(QuestionPlan.generateMoreTypes(),
+                [.supportingDetail, .implication, .pressureTest], "generate-more mix")
+
+    // Eligibility: all four flags AND ≥350 words AND no existing initial check.
+    expect(QuestionPlan.shouldPreGenerate(wordCount: 350, aiEnabled: true, consentAccepted: true,
+            hasKey: true, hasInitialCheck: false), "eligible when all conditions hold")
+    expect(!QuestionPlan.shouldPreGenerate(wordCount: 349, aiEnabled: true, consentAccepted: true,
+            hasKey: true, hasInitialCheck: false), "349 words is below auto threshold")
+    expect(!QuestionPlan.shouldPreGenerate(wordCount: 350, aiEnabled: false, consentAccepted: true,
+            hasKey: true, hasInitialCheck: false), "AI disabled blocks pre-gen")
+    expect(!QuestionPlan.shouldPreGenerate(wordCount: 350, aiEnabled: true, consentAccepted: false,
+            hasKey: true, hasInitialCheck: false), "missing consent blocks pre-gen (no modal on paste)")
+    expect(!QuestionPlan.shouldPreGenerate(wordCount: 350, aiEnabled: true, consentAccepted: true,
+            hasKey: false, hasInitialCheck: false), "missing key blocks pre-gen")
+    expect(!QuestionPlan.shouldPreGenerate(wordCount: 350, aiEnabled: true, consentAccepted: true,
+            hasKey: true, hasInitialCheck: true), "existing check blocks duplicate pre-gen")
+
+    expectEqual(QuestionPlan.initialCacheKey(textHash: "abc", model: "m1", promptVersion: 1),
+                "abc|m1|1", "initial cache key includes promptVersion")
+    let pid = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    expectEqual(QuestionPlan.generateMoreCacheKey(parentCheckId: pid, model: "m1", promptVersion: 1, batchIndex: 2),
+                "00000000-0000-0000-0000-000000000001|m1|1|2", "generate-more key shape")
+}
+
 print("")
 if failures.isEmpty {
     print("All checks passed ✅")
