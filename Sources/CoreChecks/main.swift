@@ -804,6 +804,31 @@ do {
                 "text convenience matches token-stream estimate")
 }
 
+print("Comprehension Models")
+do {
+    expectEqual(ChoiceKey.allCases.count, 4, "four choice keys")
+    expectEqual(QuestionType.mainPoint.rawValue, "main_point", "main_point raw value")
+    expectEqual(QuestionType.supportingDetail.rawValue, "supporting_detail", "supporting_detail raw value")
+    expectEqual(QuestionType.pressureTest.rawValue, "pressure_test", "pressure_test raw value")
+    expectEqual(ComprehensionGenerationKind.generateMore.rawValue, "generate_more", "generate_more raw value")
+    expectEqual(ComprehensionStatus.notStarted.rawValue, "not_started", "not_started raw value")
+
+    let choices = ComprehensionChoices(a: "alpha", b: "bravo", c: "charlie", d: "delta")
+    expectEqual(choices.text(for: .c), "charlie", "choices.text(for:) reads the right slot")
+    expectEqual(choices.all, ["alpha", "bravo", "charlie", "delta"], "choices.all is a..d in order")
+
+    // A draft decoded from the exact JSON shape the model returns.
+    let json = """
+    {"questions":[{"question":"Q?","choices":{"a":"A","b":"B","c":"C","d":"D"},
+      "correctChoice":"b","explanation":"because B.","supportingQuote":"the supporting words here",
+      "type":"main_point"}]}
+    """.data(using: .utf8)!
+    let draft = try! JSONDecoder().decode(ComprehensionCheckDraft.self, from: json)
+    expectEqual(draft.questions.count, 1, "draft decodes one question")
+    expectEqual(draft.questions[0].correctChoice, .b, "draft decodes correctChoice")
+    expectEqual(draft.questions[0].type, .mainPoint, "draft decodes type from snake_case")
+}
+
 print("")
 if failures.isEmpty {
     print("All checks passed ✅")
