@@ -1021,6 +1021,49 @@ do {
     expect(!store.hasOpenAIKey(), "key gone after delete")
 }
 
+print("SkimStore comprehension")
+do {
+    let store = try! SkimStore(path: ":memory:")
+    let now = Date(timeIntervalSince1970: 1_700_000_000)
+    let choices = ComprehensionChoices(a: "a", b: "b", c: "c", d: "d")
+    let q = ComprehensionQuestion(question: "Main point?", choices: choices, correctChoice: .b,
+                explanation: "because", supportingQuote: "a grounded excerpt of eight words here now",
+                type: .mainPoint)
+    let check = ComprehensionCheck(readId: "read-1", textHash: "hash-1", model: "m1",
+                promptVersion: 1, generatedAt: now, kind: .initial, batchIndex: 0, questions: [q])
+
+    expect(!(try! store.hasInitialCheck(textHash: "hash-1", model: "m1", promptVersion: 1)),
+           "no check before insert")
+    try! store.insertCheck(check)
+    expect(try! store.hasInitialCheck(textHash: "hash-1", model: "m1", promptVersion: 1),
+           "check present after insert")
+    // promptVersion is part of the key: a bump misses the cache.
+    expect(!(try! store.hasInitialCheck(textHash: "hash-1", model: "m1", promptVersion: 2)),
+           "promptVersion bump invalidates the cached check")
+
+    let loaded = try! store.initialCheck(textHash: "hash-1", model: "m1", promptVersion: 1)
+    expectEqual(loaded?.questions.count, 1, "round-trips its question")
+    expectEqual(loaded?.questions.first?.correctChoice, .b, "round-trips correctChoice")
+    expectEqual(loaded?.questions.first?.type, .mainPoint, "round-trips type")
+    expectEqual(loaded?.questions.first?.id, q.id, "preserves question id")
+
+    // Dispute flag persists.
+    try! store.setQuestionDisputed(questionId: q.id, disputed: true)
+    let disputed = try! store.checks(forReadId: "read-1").first?.questions.first?.disputed
+    expectEqual(disputed, true, "dispute flag persists")
+
+    // Answers persist and read back as a map.
+    try! store.recordAnswer(questionId: q.id, selectedChoice: .b, isCorrect: true, answeredAt: now)
+    expectEqual(try! store.answers(forCheckId: check.id), [q.id: .b], "answer round-trips")
+
+    // Batch index increments for generate-more under a parent.
+    expectEqual(try! store.nextBatchIndex(parentCheckId: check.id), 1, "first follow-up batch is index 1")
+
+    // Completion stamps score.
+    try! store.markCheckCompleted(checkId: check.id, score: 1, completedAt: now)
+    expectEqual(try! store.checks(forReadId: "read-1").first?.score, 1, "score persists on completion")
+}
+
 print("")
 if failures.isEmpty {
     print("All checks passed ✅")

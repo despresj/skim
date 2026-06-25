@@ -236,6 +236,57 @@ public final class SkimStore {
         );
         """)
         try exec("CREATE INDEX IF NOT EXISTS idx_ideas_created ON improvement_ideas(created_at DESC);")
+
+        try exec("""
+        CREATE TABLE IF NOT EXISTS comprehension_checks (
+            id TEXT PRIMARY KEY,
+            read_id TEXT NOT NULL,
+            text_hash TEXT NOT NULL,
+            model TEXT NOT NULL,
+            prompt_version INTEGER NOT NULL,
+            generated_at TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            parent_check_id TEXT,
+            batch_index INTEGER NOT NULL DEFAULT 0,
+            completed_at TEXT,
+            score INTEGER
+        );
+        """)
+        try exec("CREATE INDEX IF NOT EXISTS idx_checks_read ON comprehension_checks(read_id);")
+        try exec("""
+        CREATE INDEX IF NOT EXISTS idx_checks_initial
+        ON comprehension_checks(text_hash, model, prompt_version, kind);
+        """)
+        try exec("""
+        CREATE TABLE IF NOT EXISTS comprehension_questions (
+            id TEXT PRIMARY KEY,
+            check_id TEXT NOT NULL,
+            ordinal INTEGER NOT NULL,
+            question TEXT NOT NULL,
+            choice_a TEXT NOT NULL,
+            choice_b TEXT NOT NULL,
+            choice_c TEXT NOT NULL,
+            choice_d TEXT NOT NULL,
+            correct_choice TEXT NOT NULL,
+            explanation TEXT NOT NULL,
+            supporting_quote TEXT NOT NULL,
+            type TEXT NOT NULL,
+            source_start_token_index INTEGER,
+            source_end_token_index INTEGER,
+            disputed INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(check_id) REFERENCES comprehension_checks(id) ON DELETE CASCADE
+        );
+        """)
+        try exec("CREATE INDEX IF NOT EXISTS idx_questions_check ON comprehension_questions(check_id, ordinal);")
+        try exec("""
+        CREATE TABLE IF NOT EXISTS comprehension_answers (
+            question_id TEXT PRIMARY KEY,
+            selected_choice TEXT NOT NULL,
+            is_correct INTEGER NOT NULL,
+            answered_at TEXT NOT NULL,
+            FOREIGN KEY(question_id) REFERENCES comprehension_questions(id) ON DELETE CASCADE
+        );
+        """)
     }
 
     // MARK: Ideas
@@ -461,6 +512,202 @@ public final class SkimStore {
             readingHand: columnText(stmt, 12) ?? "right",
             status: ReadStatus(rawValue: columnText(stmt, 13) ?? "active") ?? .active
         )
+    }
+
+    // MARK: Comprehension
+
+    /// Write a check and all its questions atomically. Used for both the initial
+    /// batch and each user-requested "generate more" follow-up.
+    public func insertCheck(_ check: ComprehensionCheck) throws {
+        try exec("BEGIN;")
+        do {
+            try run("""
+            INSERT INTO comprehension_checks
+              (id, read_id, text_hash, model, prompt_version, generated_at, kind,
+               parent_check_id, batch_index, completed_at, score)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """) { stmt in
+                bindText(stmt, 1, check.id.uuidString)
+                bindText(stmt, 2, check.readId)
+                bindText(stmt, 3, check.textHash)
+                bindText(stmt, 4, check.model)
+                bindInt(stmt, 5, check.promptVersion)
+                bindText(stmt, 6, iso.string(from: check.generatedAt))
+                bindText(stmt, 7, check.kind.rawValue)
+                bindText(stmt, 8, check.parentCheckId?.uuidString)
+                bindInt(stmt, 9, check.batchIndex)
+                bindText(stmt, 10, check.completedAt.map { iso.string(from: $0) })
+                bindInt(stmt, 11, check.score)
+            }
+            for (ordinal, q) in check.questions.enumerated() {
+                try run("""
+                INSERT INTO comprehension_questions
+                  (id, check_id, ordinal, question, choice_a, choice_b, choice_c, choice_d,
+                   correct_choice, explanation, supporting_quote, type,
+                   source_start_token_index, source_end_token_index, disputed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """) { stmt in
+                    bindText(stmt, 1, q.id.uuidString)
+                    bindText(stmt, 2, check.id.uuidString)
+                    bindInt(stmt, 3, ordinal)
+                    bindText(stmt, 4, q.question)
+                    bindText(stmt, 5, q.choices.a)
+                    bindText(stmt, 6, q.choices.b)
+                    bindText(stmt, 7, q.choices.c)
+                    bindText(stmt, 8, q.choices.d)
+                    bindText(stmt, 9, q.correctChoice.rawValue)
+                    bindText(stmt, 10, q.explanation)
+                    bindText(stmt, 11, q.supportingQuote)
+                    bindText(stmt, 12, q.type.rawValue)
+                    bindInt(stmt, 13, q.sourceStartTokenIndex)
+                    bindInt(stmt, 14, q.sourceEndTokenIndex)
+                    bindInt(stmt, 15, q.disputed ? 1 : 0)
+                }
+            }
+            try exec("COMMIT;")
+        } catch {
+            try? exec("ROLLBACK;")
+            throw error
+        }
+    }
+
+    /// The cached initial check for a text under the current prompt version, if any.
+    public func initialCheck(textHash: String, model: String, promptVersion: Int) throws -> ComprehensionCheck? {
+        var id: String?
+        try query("""
+        SELECT id FROM comprehension_checks
+        WHERE text_hash = ? AND model = ? AND prompt_version = ? AND kind = 'initial'
+        ORDER BY generated_at DESC LIMIT 1;
+        """, bind: { stmt in
+            bindText(stmt, 1, textHash); bindText(stmt, 2, model); bindInt(stmt, 3, promptVersion)
+        }, each: { stmt in id = Self.columnText(stmt, 0) })
+        guard let id, let uuid = UUID(uuidString: id) else { return nil }
+        return try loadCheck(id: uuid)
+    }
+
+    public func hasInitialCheck(textHash: String, model: String, promptVersion: Int) throws -> Bool {
+        try initialCheck(textHash: textHash, model: model, promptVersion: promptVersion) != nil
+    }
+
+    /// All batches for a read (initial + follow-ups), oldest batch first.
+    public func checks(forReadId readId: String) throws -> [ComprehensionCheck] {
+        var ids: [UUID] = []
+        try query("""
+        SELECT id FROM comprehension_checks WHERE read_id = ? ORDER BY batch_index ASC, generated_at ASC;
+        """, bind: { bindText($0, 1, readId) }, each: { stmt in
+            if let s = Self.columnText(stmt, 0), let u = UUID(uuidString: s) { ids.append(u) }
+        })
+        return try ids.compactMap { try loadCheck(id: $0) }
+    }
+
+    public func nextBatchIndex(parentCheckId: UUID) throws -> Int {
+        var maxIndex: Int = 0
+        try query("""
+        SELECT COALESCE(MAX(batch_index), 0) FROM comprehension_checks WHERE parent_check_id = ?;
+        """, bind: { bindText($0, 1, parentCheckId.uuidString) },
+             each: { maxIndex = Int(sqlite3_column_int64($0, 0)) })
+        return maxIndex + 1
+    }
+
+    public func setQuestionDisputed(questionId: UUID, disputed: Bool) throws {
+        try run("UPDATE comprehension_questions SET disputed = ? WHERE id = ?;") { stmt in
+            bindInt(stmt, 1, disputed ? 1 : 0)
+            bindText(stmt, 2, questionId.uuidString)
+        }
+    }
+
+    public func recordAnswer(questionId: UUID, selectedChoice: ChoiceKey, isCorrect: Bool, answeredAt: Date) throws {
+        try run("""
+        INSERT INTO comprehension_answers (question_id, selected_choice, is_correct, answered_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(question_id) DO UPDATE SET
+          selected_choice = excluded.selected_choice,
+          is_correct = excluded.is_correct,
+          answered_at = excluded.answered_at;
+        """) { stmt in
+            bindText(stmt, 1, questionId.uuidString)
+            bindText(stmt, 2, selectedChoice.rawValue)
+            bindInt(stmt, 3, isCorrect ? 1 : 0)
+            bindText(stmt, 4, iso.string(from: answeredAt))
+        }
+    }
+
+    /// The user's answers for one check, as questionId → chosen key.
+    public func answers(forCheckId checkId: UUID) throws -> [UUID: ChoiceKey] {
+        var out: [UUID: ChoiceKey] = [:]
+        try query("""
+        SELECT a.question_id, a.selected_choice
+        FROM comprehension_answers a
+        JOIN comprehension_questions q ON q.id = a.question_id
+        WHERE q.check_id = ?;
+        """, bind: { bindText($0, 1, checkId.uuidString) }, each: { stmt in
+            if let qs = Self.columnText(stmt, 0), let qid = UUID(uuidString: qs),
+               let cs = Self.columnText(stmt, 1), let key = ChoiceKey(rawValue: cs) {
+                out[qid] = key
+            }
+        })
+        return out
+    }
+
+    public func markCheckCompleted(checkId: UUID, score: Int, completedAt: Date) throws {
+        try run("UPDATE comprehension_checks SET score = ?, completed_at = ? WHERE id = ?;") { stmt in
+            bindInt(stmt, 1, score)
+            bindText(stmt, 2, iso.string(from: completedAt))
+            bindText(stmt, 3, checkId.uuidString)
+        }
+    }
+
+    private func loadCheck(id: UUID) throws -> ComprehensionCheck? {
+        var check: ComprehensionCheck?
+        try query("""
+        SELECT id, read_id, text_hash, model, prompt_version, generated_at, kind,
+               parent_check_id, batch_index, completed_at, score
+        FROM comprehension_checks WHERE id = ? LIMIT 1;
+        """, bind: { bindText($0, 1, id.uuidString) }, each: { stmt in
+            check = ComprehensionCheck(
+                id: UUID(uuidString: Self.columnText(stmt, 0) ?? "") ?? id,
+                readId: Self.columnText(stmt, 1) ?? "",
+                textHash: Self.columnText(stmt, 2) ?? "",
+                model: Self.columnText(stmt, 3) ?? "",
+                promptVersion: Int(sqlite3_column_int64(stmt, 4)),
+                generatedAt: self.iso.date(from: Self.columnText(stmt, 5) ?? "") ?? Date(timeIntervalSince1970: 0),
+                kind: ComprehensionGenerationKind(rawValue: Self.columnText(stmt, 6) ?? "initial") ?? .initial,
+                parentCheckId: Self.columnText(stmt, 7).flatMap { UUID(uuidString: $0) },
+                batchIndex: Int(sqlite3_column_int64(stmt, 8)),
+                questions: [],
+                completedAt: Self.columnText(stmt, 9).flatMap { self.iso.date(from: $0) },
+                score: self.int(stmt, 10)
+            )
+        })
+        guard var loaded = check else { return nil }
+        loaded.questions = try loadQuestions(checkId: id)
+        return loaded
+    }
+
+    private func loadQuestions(checkId: UUID) throws -> [ComprehensionQuestion] {
+        var out: [ComprehensionQuestion] = []
+        try query("""
+        SELECT id, question, choice_a, choice_b, choice_c, choice_d, correct_choice,
+               explanation, supporting_quote, type, source_start_token_index,
+               source_end_token_index, disputed
+        FROM comprehension_questions WHERE check_id = ? ORDER BY ordinal ASC;
+        """, bind: { bindText($0, 1, checkId.uuidString) }, each: { stmt in
+            out.append(ComprehensionQuestion(
+                id: UUID(uuidString: Self.columnText(stmt, 0) ?? "") ?? UUID(),
+                question: Self.columnText(stmt, 1) ?? "",
+                choices: ComprehensionChoices(
+                    a: Self.columnText(stmt, 2) ?? "", b: Self.columnText(stmt, 3) ?? "",
+                    c: Self.columnText(stmt, 4) ?? "", d: Self.columnText(stmt, 5) ?? ""),
+                correctChoice: ChoiceKey(rawValue: Self.columnText(stmt, 6) ?? "a") ?? .a,
+                explanation: Self.columnText(stmt, 7) ?? "",
+                supportingQuote: Self.columnText(stmt, 8) ?? "",
+                type: QuestionType(rawValue: Self.columnText(stmt, 9) ?? "main_point") ?? .mainPoint,
+                sourceStartTokenIndex: self.int(stmt, 10),
+                sourceEndTokenIndex: self.int(stmt, 11),
+                disputed: Int(sqlite3_column_int64(stmt, 12)) == 1
+            ))
+        })
+        return out
     }
 
     // MARK: SQLite plumbing
