@@ -870,6 +870,24 @@ do {
                 "00000000-0000-0000-0000-000000000001|m1|1|2", "generate-more key shape")
 }
 
+print("QuoteNormalize")
+do {
+    // Curly quotes and apostrophes → straight.
+    expectEqual(QuoteNormalize.normalize("the \u{201C}data\u{201D} pipeline\u{2019}s edge"),
+                "the \"data\" pipeline's edge", "curly quotes/apostrophes normalized")
+    // En/em dash and minus → hyphen.
+    expectEqual(QuoteNormalize.normalize("a\u{2014}b \u{2013} c \u{2212}d"), "a-b - c -d", "dash variants → hyphen")
+    // NBSP and newlines and tabs collapse to single spaces.
+    expectEqual(QuoteNormalize.normalize("the\u{00A0}data\tpipeline\n\nchanged"),
+                "the data pipeline changed", "nbsp/tab/newline collapse")
+    // Leading/trailing whitespace and punctuation trimmed.
+    expectEqual(QuoteNormalize.normalize("  ...the pipeline changed.  "),
+                "the pipeline changed", "edge punctuation/space trimmed")
+    // Idempotence: normalizing twice equals normalizing once.
+    let once = QuoteNormalize.normalize("  \u{201C}A\u{2014}B\u{201D}  pipeline\u{00A0}edge. ")
+    expectEqual(QuoteNormalize.normalize(once), once, "normalize is idempotent")
+}
+
 print("")
 if failures.isEmpty {
     print("All checks passed ✅")
