@@ -9,8 +9,11 @@ public enum QuestionPlan {
     /// old cached questions stop being served as if still valid.
     public static let currentPromptVersion = 1
 
+    /// The floor for a check to exist at all — also the floor for background
+    /// pre-generation, so any read that can have a check pre-generates on load.
     public static let minWordCount = 150
-    public static let autoPreGenWordCount = 350
+    /// The 1-question → 2-question boundary (not a pre-gen gate).
+    public static let twoQuestionWordCount = 350
     public static let generateMoreCount = 3
     public static let softCap = 8
     public static let hardCap = 12
@@ -19,8 +22,8 @@ public enum QuestionPlan {
     public static func initialQuestionCount(wordCount: Int) -> Int {
         switch wordCount {
         case ..<minWordCount: return 0
-        case minWordCount..<autoPreGenWordCount: return 1   // manual-only
-        case autoPreGenWordCount..<900: return 2
+        case minWordCount..<twoQuestionWordCount: return 1
+        case twoQuestionWordCount..<900: return 2
         case 900..<2000: return 3
         default: return 5
         }
@@ -43,13 +46,14 @@ public enum QuestionPlan {
         [.supportingDetail, .implication, .pressureTest]
     }
 
-    /// Whether to silently start background generation on paste/import. Requires
-    /// consent to be *already* accepted — pre-gen never raises a consent modal.
+    /// Whether to silently start background generation on paste/import. Fires for
+    /// any read long enough to earn a check (`>= minWordCount`). Requires consent
+    /// to be *already* accepted — pre-gen never raises a consent modal.
     public static func shouldPreGenerate(
         wordCount: Int, aiEnabled: Bool, consentAccepted: Bool,
         hasKey: Bool, hasInitialCheck: Bool
     ) -> Bool {
-        wordCount >= autoPreGenWordCount
+        wordCount >= minWordCount
             && aiEnabled && consentAccepted && hasKey && !hasInitialCheck
     }
 

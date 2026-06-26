@@ -849,11 +849,13 @@ do {
     expectEqual(QuestionPlan.generateMoreTypes(),
                 [.supportingDetail, .implication, .pressureTest], "generate-more mix")
 
-    // Eligibility: all four flags AND ≥350 words AND no existing initial check.
+    // Eligibility: all four flags AND ≥150 words (the check floor) AND no existing check.
     expect(QuestionPlan.shouldPreGenerate(wordCount: 350, aiEnabled: true, consentAccepted: true,
             hasKey: true, hasInitialCheck: false), "eligible when all conditions hold")
-    expect(!QuestionPlan.shouldPreGenerate(wordCount: 349, aiEnabled: true, consentAccepted: true,
-            hasKey: true, hasInitialCheck: false), "349 words is below auto threshold")
+    expect(QuestionPlan.shouldPreGenerate(wordCount: 150, aiEnabled: true, consentAccepted: true,
+            hasKey: true, hasInitialCheck: false), "eligible at the 150-word check floor")
+    expect(!QuestionPlan.shouldPreGenerate(wordCount: 149, aiEnabled: true, consentAccepted: true,
+            hasKey: true, hasInitialCheck: false), "below 150 words → no check, no pre-gen")
     expect(!QuestionPlan.shouldPreGenerate(wordCount: 350, aiEnabled: false, consentAccepted: true,
             hasKey: true, hasInitialCheck: false), "AI disabled blocks pre-gen")
     expect(!QuestionPlan.shouldPreGenerate(wordCount: 350, aiEnabled: true, consentAccepted: false,

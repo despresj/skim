@@ -10,6 +10,7 @@ struct AIFeaturesView: View {
     @State private var draftKey = ""
     @State private var status: String?
     @State private var testing = false
+    @State private var showingConsent = false
 
     var body: some View {
         ZStack {
@@ -29,10 +30,30 @@ struct AIFeaturesView: View {
                         .foregroundStyle(Color.readingMuted)
 
                     Toggle("Enable comprehension checks", isOn: Binding(
-                        get: { settings.enabled }, set: { settings.enabled = $0 }))
+                        get: { settings.enabled },
+                        set: { turnedOn in
+                            if turnedOn {
+                                // Enabling is the consent moment: once accepted, every
+                                // eligible paste pre-generates in the background (text may
+                                // be sent to OpenAI on paste). Stay off until they accept.
+                                if settings.consentAccepted { settings.enabled = true }
+                                else { showingConsent = true }
+                            } else {
+                                settings.enabled = false
+                            }
+                        }))
                         .tint(Color.readingAccent)
                         .font(.system(size: 15, weight: .medium, design: .rounded))
                         .foregroundStyle(Color.readingForeground)
+                        .sheet(isPresented: $showingConsent) {
+                            ComprehensionConsentView(
+                                onContinue: {
+                                    settings.consentAccepted = true
+                                    settings.enabled = true
+                                    showingConsent = false
+                                },
+                                onCancel: { showingConsent = false })
+                        }
 
                     if let masked = service.maskedKey() {
                         HStack {
