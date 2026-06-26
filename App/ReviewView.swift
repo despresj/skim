@@ -8,6 +8,8 @@ import SwiftUI
 struct ReviewView: View {
     let viewModel: ReaderViewModel
 
+    @State private var showingCheck = false
+
     var body: some View {
         ZStack {
             ReadingCanvas()
@@ -82,12 +84,23 @@ struct ReviewView: View {
 
     private var actions: some View {
         VStack(spacing: 12) {
+            if let service = viewModel.comprehension, let readId = viewModel.currentReadId,
+               service.status(forReadId: readId) != .unavailable,
+               QuestionPlan.initialQuestionCount(wordCount: viewModel.wordCount) > 0 {
+                Button {
+                    showingCheck = true
+                } label: {
+                    Label("Check understanding", systemImage: "checkmark.circle")
+                }
+                .buttonStyle(PrimaryPillStyle())
+            }
+
             Button {
                 viewModel.readAgain()
             } label: {
                 Label("Read Again", systemImage: "arrow.counterclockwise")
             }
-            .buttonStyle(PrimaryPillStyle())
+            .buttonStyle(SecondaryPillStyle())
 
             Button {
                 viewModel.openRecents()
@@ -98,5 +111,14 @@ struct ReviewView: View {
         }
         // Lift off the home indicator so the buttons sit in clean thumb range.
         .padding(.bottom, 8)
+        .sheet(isPresented: $showingCheck) {
+            if let service = viewModel.comprehension, let readId = viewModel.currentReadId {
+                ComprehensionCheckView(
+                    model: ComprehensionCheckViewModel(
+                        service: service, settings: service.settingsForUI,
+                        readId: readId, text: viewModel.reviewText, title: viewModel.currentTitle,
+                        wordCount: viewModel.wordCount))
+            }
+        }
     }
 }
