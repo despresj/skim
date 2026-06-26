@@ -233,6 +233,26 @@ struct PrimaryPillStyle: ButtonStyle {
     }
 }
 
+/// Optional-action pill for the post-read comprehension check. Secondary weight —
+/// the same dark surface as `SecondaryPillStyle` — but carries a subtle amber
+/// accent via its border so it reads as offered, not pushed. The filled amber
+/// `PrimaryPillStyle` is reserved for primary reading actions; an optional check
+/// must never compete with "You finished."
+struct ComprehensionPillStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.vertical, 13)
+            .padding(.horizontal, 22)
+            .frame(maxWidth: .infinity)
+            .background(Color.readingSurface, in: Capsule())
+            .overlay(Capsule().stroke(Color.readingAccent.opacity(0.45), lineWidth: 1))
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7),
+                       value: configuration.isPressed)
+    }
+}
+
 /// Quiet outlined pill for secondary actions.
 struct SecondaryPillStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

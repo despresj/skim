@@ -13,11 +13,29 @@ public enum ComprehensionValidationError: Error, Equatable {
     case quoteWrongLength(index: Int, words: Int)
     case quoteNotGrounded(index: Int)
     case duplicateQuestion(first: Int, second: Int)
+    // Item-quality (anti-cueing) problems: the choice *shape* leaks the answer, or a
+    // distractor is junk rather than a plausible misread.
+    case choicesImbalanced(index: Int)                          // longest choice dwarfs shortest
+    case bannedChoicePhrase(index: Int, key: ChoiceKey)         // "all/none of the above"
+    case unsupportedAbsolute(index: Int, key: ChoiceKey, word: String)  // extreme word absent from source
+    case choiceTooShort(index: Int, key: ChoiceKey)             // trivially short / junk filler
 }
 
 public enum ComprehensionValidation {
     public static let minQuoteWords = 8
     public static let maxQuoteWords = 40
+
+    /// A distractor under this many characters reads as junk filler, not a plausible
+    /// misunderstanding — the longest choice must not exceed `maxChoiceLengthRatio`× the
+    /// shortest, so the right answer can't be picked out by being conspicuously detailed.
+    public static let minChoiceChars = 3
+    public static let maxChoiceLengthRatio = 1.8
+    /// Extreme absolutes are allowed only when the *source* itself uses the word; an
+    /// unsupported "never"/"always" is a classic giveaway-or-overreach distractor flaw.
+    public static let absoluteWords: Set<String> = [
+        "always", "never", "completely", "only", "guarantees", "eliminates",
+    ]
+    public static let bannedChoicePhrases = ["all of the above", "none of the above"]
 
     public static func validate(
         _ draft: ComprehensionCheckDraft, requestedCount: Int, sourceText: String
@@ -29,6 +47,7 @@ public enum ComprehensionValidation {
         }
 
         let normalizedSource = QuoteNormalize.normalize(sourceText)
+        let sourceWords = Set(words(of: sourceText))
         var seenQuestions: [(index: Int, text: String)] = []
 
         for (i, q) in draft.questions.enumerated() {
@@ -46,6 +65,29 @@ public enum ComprehensionValidation {
             let normChoices = q.choices.all.map { QuoteNormalize.normalize($0) }
             if Set(normChoices).count != normChoices.count {
                 errors.append(.duplicateChoices(index: i))
+            }
+            // Item-quality (anti-cueing): no choice should give the answer away by shape.
+            let keyedChoices = ChoiceKey.allCases.map { (key: $0, text: q.choices.text(for: $0)) }
+            for (key, text) in keyedChoices {
+                let norm = QuoteNormalize.normalize(text)
+                if norm.count < minChoiceChars {
+                    errors.append(.choiceTooShort(index: i, key: key))
+                }
+                let lower = norm.lowercased()
+                if bannedChoicePhrases.contains(where: { lower.contains($0) }) {
+                    errors.append(.bannedChoicePhrase(index: i, key: key))
+                }
+                // Extreme absolutes are flaws only when the source doesn't back them up.
+                for word in Set(words(of: text)) where
+                    absoluteWords.contains(word) && !sourceWords.contains(word) {
+                    errors.append(.unsupportedAbsolute(index: i, key: key, word: word))
+                }
+            }
+            // Length giveaway: the correct answer must not be the conspicuously long one.
+            let lengths = normChoices.map(\.count)
+            if let lo = lengths.min(), let hi = lengths.max(), lo > 0,
+               Double(hi) / Double(lo) > maxChoiceLengthRatio {
+                errors.append(.choicesImbalanced(index: i))
             }
             // Quote length (word count after normalization).
             let normQuote = QuoteNormalize.normalize(q.supportingQuote)
@@ -65,5 +107,13 @@ public enum ComprehensionValidation {
             }
         }
         return errors
+    }
+
+    /// Lowercased alphanumeric word tokens, for whole-word membership tests
+    /// (so "only" matches the word, never the tail of "commonly").
+    private static func words(of s: String) -> [String] {
+        QuoteNormalize.normalize(s).lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
     }
 }

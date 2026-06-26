@@ -34,6 +34,20 @@ func expectClose(_ actual: [Double], _ expected: [Double], _ message: String, to
     expect(ok, "\(message)  (got \(actual), want ~\(expected))")
 }
 
+/// A deterministic SplitMix64 RNG so shuffle tests are reproducible without
+/// touching the system entropy source. Test-only.
+struct SeededRNG: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
+}
+
 print("Tokenizer")
 do {
     let t = Tokenizer.tokenize("the quick brown fox")
@@ -897,7 +911,11 @@ do {
     app is not instant, it becomes a cool demo instead of a daily reflex that people reach for.
     """
     func q(_ quote: String,
-           choices: ComprehensionChoices = .init(a: "one", b: "two", c: "three", d: "four"),
+           choices: ComprehensionChoices = .init(
+                a: "It helps people finish long text without feeling lost",
+                b: "It grades readers the way a school exam would",
+                c: "It treats fast scrolling as proof of understanding",
+                d: "It saves every passage to a shared public timeline"),
            question: String = "What is the main point?",
            explanation: String = "Because the passage says so.") -> ComprehensionQuestionDraft {
         .init(question: question, choices: choices, correctChoice: .a,
@@ -930,18 +948,126 @@ do {
     expectEqual(ComprehensionValidation.validate(short, requestedCount: 1, sourceText: source).first,
                 .quoteWrongLength(index: 0, words: 3), "rejects sub-8-word quote")
 
-    // Duplicate answer choices within a question.
+    // Duplicate answer choices within a question (a == b), other choices clean.
     let dupChoice = ComprehensionCheckDraft(questions: [q(
         "Skim helps users finish long text faster without feeling lost",
-        choices: .init(a: "same", b: "same", c: "x", d: "y"))])
-    expectEqual(ComprehensionValidation.validate(dupChoice, requestedCount: 1, sourceText: source).first,
-                .duplicateChoices(index: 0), "rejects duplicate choices")
+        choices: .init(a: "It helps people finish long text without feeling lost",
+                       b: "It helps people finish long text without feeling lost",
+                       c: "It treats fast scrolling as proof of understanding",
+                       d: "It saves every passage to a shared public timeline"))])
+    expect(ComprehensionValidation.validate(dupChoice, requestedCount: 1, sourceText: source)
+            .contains(.duplicateChoices(index: 0)), "rejects duplicate choices")
 
     // Duplicate questions across the set.
     let g = q("Skim helps users finish long text faster without feeling lost")
     let dupQ = ComprehensionCheckDraft(questions: [g, g])
     expectEqual(ComprehensionValidation.validate(dupQ, requestedCount: 2, sourceText: source).first,
                 .duplicateQuestion(first: 0, second: 1), "rejects duplicate questions")
+}
+
+print("ComprehensionValidation item-quality")
+do {
+    let source = """
+    Skim is a calm casual flow-reading instrument, not a speed-reading app. The comprehension
+    check is a trust layer, not school. You bring your own key, and pre-generation only happens
+    after consent so nothing leaves the device by surprise.
+    """
+    func item(_ choices: ComprehensionChoices) -> ComprehensionCheckDraft {
+        ComprehensionCheckDraft(questions: [.init(
+            question: "What is Skim's stance?", choices: choices, correctChoice: .a,
+            explanation: "Because the passage frames it that way.",
+            supportingQuote: "Skim is a calm casual flow-reading instrument, not a speed-reading app",
+            type: .mainPoint)])
+    }
+
+    // Balanced, plausible distractors → clean.
+    let balanced = item(.init(
+        a: "A calm flow-reading instrument for casual reading",
+        b: "A speed-reading drill that pushes maximum word rate",
+        c: "A graded school quiz that scores your recall",
+        d: "A cloud service that syncs your reading history"))
+    expect(ComprehensionValidation.validate(balanced, requestedCount: 1, sourceText: source).isEmpty,
+           "balanced plausible distractors pass")
+
+    // Correct answer far longer than the distractors → answer-shape giveaway.
+    let lopsided = item(.init(
+        a: "A calm casual flow-reading instrument designed to keep low-friction reading effortless for daily readers",
+        b: "A speed app", c: "A school quiz", d: "A cloud sync"))
+    expect(ComprehensionValidation.validate(lopsided, requestedCount: 1, sourceText: source)
+            .contains(.choicesImbalanced(index: 0)), "rejects answer-length giveaway")
+
+    // 'All of the above' style choice.
+    let allAbove = item(.init(
+        a: "A calm flow-reading instrument for casual reading",
+        b: "A speed-reading drill that pushes maximum word rate",
+        c: "A graded school quiz that scores your recall",
+        d: "All of the above"))
+    expect(ComprehensionValidation.validate(allAbove, requestedCount: 1, sourceText: source)
+            .contains(.bannedChoicePhrase(index: 0, key: .d)), "rejects 'all of the above'")
+
+    // An absolute the source does NOT support.
+    let absolute = item(.init(
+        a: "A calm flow-reading instrument for casual reading",
+        b: "A tool that never lets a reader lose the thread",
+        c: "A graded school quiz that scores your recall",
+        d: "A cloud service that syncs your reading history"))
+    expect(ComprehensionValidation.validate(absolute, requestedCount: 1, sourceText: source)
+            .contains(.unsupportedAbsolute(index: 0, key: .b, word: "never")),
+           "rejects an unsupported absolute")
+
+    // The same absolute IS allowed once the source uses it.
+    let supportedSource = source + " A good check never fabricates a quote."
+    expect(!ComprehensionValidation.validate(absolute, requestedCount: 1, sourceText: supportedSource)
+            .contains(.unsupportedAbsolute(index: 0, key: .b, word: "never")),
+           "source-supported absolute is allowed")
+
+    // A junk one-character choice.
+    let tiny = item(.init(
+        a: "A calm flow-reading instrument for casual reading",
+        b: "A speed-reading drill that pushes maximum word rate",
+        c: "A graded school quiz that scores your recall",
+        d: "x"))
+    expect(ComprehensionValidation.validate(tiny, requestedCount: 1, sourceText: source)
+            .contains(.choiceTooShort(index: 0, key: .d)), "rejects junk too-short choice")
+}
+
+print("ComprehensionShuffle")
+do {
+    let base = ComprehensionQuestionDraft(
+        question: "Q?", choices: .init(a: "Alpha", b: "Bravo", c: "Charlie", d: "Delta"),
+        correctChoice: .b, explanation: "e", supportingQuote: "the supporting words here",
+        type: .mainPoint)
+
+    var rng = SeededRNG(seed: 42)
+    let s = ComprehensionShuffle.shuffled(base, using: &rng)
+    expectEqual(s.choices.text(for: s.correctChoice), "Bravo", "correct answer text survives the shuffle")
+    expectEqual(Set(s.choices.all), Set(["Alpha", "Bravo", "Charlie", "Delta"]), "all four texts preserved")
+    expectEqual(s.question, "Q?", "non-choice fields untouched")
+
+    // Deterministic: same seed → identical order.
+    var rngA = SeededRNG(seed: 7)
+    var rngB = SeededRNG(seed: 7)
+    expectEqual(ComprehensionShuffle.shuffled(base, using: &rngA).choices.all,
+                ComprehensionShuffle.shuffled(base, using: &rngB).choices.all,
+                "same seed → identical order")
+
+    // It actually permutes for at least one seed in a small range.
+    var permuted = false
+    for seed in UInt64(0)..<64 {
+        var r = SeededRNG(seed: seed)
+        if ComprehensionShuffle.shuffled(base, using: &r).choices.all != ["Alpha", "Bravo", "Charlie", "Delta"] {
+            permuted = true; break
+        }
+    }
+    expect(permuted, "shuffle changes order for some seed")
+
+    // Check-level shuffle maps over every question and tracks each correct answer.
+    let check = ComprehensionCheckDraft(questions: [base, base])
+    var rc = SeededRNG(seed: 99)
+    let sc = ComprehensionShuffle.shuffled(check, using: &rc)
+    expectEqual(sc.questions.count, 2, "check shuffle preserves question count")
+    expect(sc.questions.allSatisfy { $0.choices.text(for: $0.correctChoice) == "Bravo" },
+           "every question keeps its correct answer after shuffle")
 }
 
 print("ComprehensionChunking")

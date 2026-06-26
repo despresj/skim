@@ -62,15 +62,42 @@ public struct ComprehensionQuestionDraft: Codable, Equatable, Sendable {
     public let explanation: String
     public let supportingQuote: String
     public let type: QuestionType
+    /// Internal item-writing diagnostics — what understanding the item probes, and why
+    /// each distractor is tempting-but-wrong. Requested from the model to force it to
+    /// *reason about* the distractors (which lifts their quality); logged on rejection,
+    /// not shown to the reader and not persisted in V0. Decoded leniently so an omitted
+    /// field never fails the parse.
+    public let testedInsight: String
+    public let distractorRationales: [String]
 
     public init(question: String, choices: ComprehensionChoices, correctChoice: ChoiceKey,
-                explanation: String, supportingQuote: String, type: QuestionType) {
+                explanation: String, supportingQuote: String, type: QuestionType,
+                testedInsight: String = "", distractorRationales: [String] = []) {
         self.question = question
         self.choices = choices
         self.correctChoice = correctChoice
         self.explanation = explanation
         self.supportingQuote = supportingQuote
         self.type = type
+        self.testedInsight = testedInsight
+        self.distractorRationales = distractorRationales
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case question, choices, correctChoice, explanation, supportingQuote, type
+        case testedInsight, distractorRationales
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        question = try c.decode(String.self, forKey: .question)
+        choices = try c.decode(ComprehensionChoices.self, forKey: .choices)
+        correctChoice = try c.decode(ChoiceKey.self, forKey: .correctChoice)
+        explanation = try c.decode(String.self, forKey: .explanation)
+        supportingQuote = try c.decode(String.self, forKey: .supportingQuote)
+        type = try c.decode(QuestionType.self, forKey: .type)
+        testedInsight = try c.decodeIfPresent(String.self, forKey: .testedInsight) ?? ""
+        distractorRationales = try c.decodeIfPresent([String].self, forKey: .distractorRationales) ?? []
     }
 }
 

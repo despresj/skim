@@ -7,7 +7,10 @@ import Foundation
 public enum QuestionPlan {
     /// Bump whenever the prompt, schema, validation, or question mix changes, so
     /// old cached questions stop being served as if still valid.
-    public static let currentPromptVersion = 1
+    /// v2: item-writing prompt (plausible distractors, anti-cueing), item-quality
+    /// validation (length-balance, banned phrases, unsupported absolutes), and
+    /// answer-order shuffling.
+    public static let currentPromptVersion = 2
 
     /// The floor for a check to exist at all — also the floor for background
     /// pre-generation, so any read that can have a check pre-generates on load.

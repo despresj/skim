@@ -87,6 +87,15 @@ import os
         return .ready
     }
 
+    /// Total questions waiting for this read (summed across batches), so the
+    /// end-screen affordance can say "· 3 questions" without re-deriving counts.
+    /// Returns 0 when nothing is generated yet.
+    func questionCount(forReadId readId: String?) -> Int {
+        _ = revision   // observe
+        guard let readId, let store, let batches = try? store.checks(forReadId: readId) else { return 0 }
+        return batches.reduce(0) { $0 + $1.questions.count }
+    }
+
     // MARK: Generation
 
     /// Manual end-screen path: reuse the cached initial check or generate one.
@@ -156,11 +165,16 @@ import os
             return .failure(.validationFailed)
         }
 
+        // Randomise answer order so the correct choice isn't always slot `a` — a
+        // positional tell would let a reader pass without keeping the thread.
+        var rng = SystemRandomNumberGenerator()
+        let shuffled = ComprehensionShuffle.shuffled(draft, using: &rng)
+
         let check = ComprehensionCheck(
             readId: readId, textHash: TextHash.of(text), model: settings.model,
             promptVersion: QuestionPlan.currentPromptVersion, generatedAt: Date(),
             kind: kind, parentCheckId: parentId, batchIndex: batchIndex,
-            questions: draft.questions.map { ComprehensionQuestion(draft: $0) })
+            questions: shuffled.questions.map { ComprehensionQuestion(draft: $0) })
         do { try store?.insertCheck(check) }
         catch {
             log.error("comprehension: DB insertCheck failed: \(String(describing: error), privacy: .public)")
@@ -194,6 +208,11 @@ import os
         case .quoteNotGrounded(let i):
             return "supportingQuote.notFoundInSource(#\(i), quote=\(boundedQuote(draft, i)))"
         case .duplicateQuestion(let a, let b): return "duplicateQuestion(#\(a),#\(b))"
+        case .choicesImbalanced(let i):       return "choicesImbalanced(#\(i))"
+        case .bannedChoicePhrase(let i, let key): return "bannedChoicePhrase(#\(i),\(key.rawValue))"
+        case .unsupportedAbsolute(let i, let key, let w):
+            return "unsupportedAbsolute(#\(i),\(key.rawValue),word:\(w))"
+        case .choiceTooShort(let i, let key): return "choiceTooShort(#\(i),\(key.rawValue))"
         }
     }
 

@@ -104,12 +104,38 @@ final class OpenAIComprehensionProvider: ComprehensionQuestionProvider {
 
     private func body(for r: ComprehensionRequest, stricter: Bool) -> ChatRequest {
         var system = """
-        You write multiple-choice comprehension questions that test whether a reader kept the \
-        main thread of a passage. Test the gist, supporting reasons, and implications — never \
-        trivia, exact wording, or formatting. Exactly four choices a/b/c/d, exactly one correct. \
-        For each question include a `supportingQuote`: a short VERBATIM excerpt (8–40 words) \
-        copied exactly from the passage that supports the correct answer. Return only the \
-        structured object with exactly \(r.count) question(s).
+        You are an expert assessment item-writer. Write multiple-choice comprehension ITEMS that \
+        verify a reader kept the main thread of a passage — never trivia, exact wording, numbers, \
+        dates, names, or formatting. This is a low-stakes trust check, not a school exam: an item \
+        should be easy for someone who genuinely followed the passage, yet impossible to guess from \
+        the shape of the options.
+
+        Each item has exactly four choices a/b/c/d and exactly one best answer. The three wrong \
+        choices are DISTRACTORS: each must be a plausible misunderstanding of THIS passage — a \
+        misread, an overreach, a reversal, or an adjacent-but-wrong reading — never nonsense, never \
+        off-topic, never a joke answer.
+
+        Make the options indistinguishable by shape. All four choices share the same semantic type: \
+        if the stem asks for a risk, every choice is a risk; for a reason, every choice is a reason; \
+        for a tradeoff, every choice is a tradeoff. All four match in length, specificity, tone, \
+        grammar, and level of nuance. The correct answer must NOT be the longest, the most qualified, \
+        the most detailed, or the only one that uses the passage's vocabulary. Every choice must fit \
+        the stem grammatically.
+
+        Never use: "all of the above" or "none of the above"; obviously silly distractors; extreme \
+        absolutes (always, never, completely, only, guarantees, eliminates) unless the passage itself \
+        supports them; a stem that gives the answer away; or two choices that are both defensibly \
+        correct.
+
+        Target real comprehension: the main thread, author or product intent, a key tradeoff, an \
+        implication, a failure mode, a tempting false interpretation, or a decision consequence — not \
+        recall of a phrase or number.
+
+        For each item also return: `supportingQuote` — a short VERBATIM excerpt (8–40 words) copied \
+        character-for-character from the passage that backs the correct answer; `testedInsight` — one \
+        sentence naming the understanding the item checks; and `distractorRationales` — one sentence \
+        per wrong choice on why it is tempting yet wrong. Return only the structured object with \
+        exactly \(r.count) question(s).
         """
         if !r.types.isEmpty {
             system += " Use these question types in order: \(r.types.map(\.rawValue).joined(separator: ", "))."
@@ -160,8 +186,11 @@ private struct ResponseFormat: Encodable {
                         "explanation": .string,
                         "supportingQuote": .string,
                         "type": .enumString(["main_point", "supporting_detail", "implication", "pressure_test"]),
+                        "testedInsight": .string,
+                        "distractorRationales": .array(items: .string),
                     ],
-                    required: ["question", "choices", "correctChoice", "explanation", "supportingQuote", "type"]))],
+                    required: ["question", "choices", "correctChoice", "explanation", "supportingQuote", "type",
+                               "testedInsight", "distractorRationales"]))],
                 required: ["questions"])))
     }
 }

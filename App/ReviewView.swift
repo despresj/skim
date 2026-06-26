@@ -80,20 +80,75 @@ struct ReviewView: View {
         )
     }
 
+    // MARK: Comprehension — an optional, de-emphasized affordance
+
+    /// The check sits above the navigation actions but never wears the filled amber
+    /// primary style — finishing a read is the moment; verifying the thread is an
+    /// offer. Shown only when a check is possible for this read.
+    @ViewBuilder
+    private var comprehensionRow: some View {
+        if let info = comprehensionAffordance {
+            Button {
+                showingCheck = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color.readingAccent)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Check understanding")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.readingForeground)
+                        if let subtitle = checkSubtitle(for: info.status, readId: info.readId,
+                                                        service: info.service) {
+                            Text(subtitle)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(Color.readingMuted)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            .buttonStyle(ComprehensionPillStyle())
+        }
+    }
+
+    /// Resolves the service/read/status once, returning `nil` when no check applies
+    /// (AI off, too short, or no service) so the row simply doesn't render.
+    private var comprehensionAffordance: (service: ComprehensionService, readId: String,
+                                          status: ComprehensionStatus)? {
+        guard let service = viewModel.comprehension, let readId = viewModel.currentReadId else { return nil }
+        let status = service.status(forReadId: readId)
+        guard status != .unavailable,
+              QuestionPlan.initialQuestionCount(wordCount: viewModel.wordCount) > 0 else { return nil }
+        return (service, readId, status)
+    }
+
+    /// The quiet context line under the label: generating / ready / not-yet count.
+    /// Uses the real generated count when available, else the planned count.
+    private func checkSubtitle(for status: ComprehensionStatus, readId: String,
+                               service: ComprehensionService) -> String? {
+        switch status {
+        case .generating:
+            return "Building check…"
+        case .ready:
+            let n = service.questionCount(forReadId: readId)
+            return n <= 1 ? "1 question" : "\(n) questions ready"
+        case .notStarted:
+            let n = QuestionPlan.initialQuestionCount(wordCount: viewModel.wordCount)
+            return n <= 1 ? "1 question" : "\(n) questions"
+        case .answered:
+            return "Reviewed"
+        case .failed, .unavailable:
+            return nil
+        }
+    }
+
     // MARK: Actions — two large thumb-range buttons
 
     private var actions: some View {
         VStack(spacing: 12) {
-            if let service = viewModel.comprehension, let readId = viewModel.currentReadId,
-               service.status(forReadId: readId) != .unavailable,
-               QuestionPlan.initialQuestionCount(wordCount: viewModel.wordCount) > 0 {
-                Button {
-                    showingCheck = true
-                } label: {
-                    Label("Check understanding", systemImage: "checkmark.circle")
-                }
-                .buttonStyle(PrimaryPillStyle())
-            }
+            comprehensionRow
 
             Button {
                 viewModel.readAgain()
