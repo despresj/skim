@@ -522,7 +522,7 @@ final class ReaderViewModel {
         )
         try? store.upsertReadItem(item)
         currentReadId = item.id
-        comprehension?.handleReadLoaded(readId: item.id, text: text,
+        comprehension?.handleReadLoaded(readId: item.id, text: reviewText,
                                         title: item.title, wordCount: tokens.count)
     }
 
