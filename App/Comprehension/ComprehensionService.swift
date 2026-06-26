@@ -109,12 +109,14 @@ import Observation
         guard let store else { return .failure(.badResponse) }
         let existing = (try? store.checks(forReadId: parent.readId)) ?? []
         let total = existing.reduce(0) { $0 + $1.questions.count }
-        guard total < QuestionPlan.hardCap else { return .failure(.badResponse) }
+        let remaining = QuestionPlan.hardCap - total
+        guard remaining > 0 else { return .failure(.badResponse) }
+        let count = min(QuestionPlan.generateMoreCount, remaining)
         let batchIndex = (try? store.nextBatchIndex(parentCheckId: parent.id)) ?? 1
         let avoiding = existing.flatMap { $0.questions.map(\.question) }
         return await generate(
             readId: parent.readId, text: text, title: title,
-            count: QuestionPlan.generateMoreCount, types: QuestionPlan.generateMoreTypes(),
+            count: count, types: QuestionPlan.generateMoreTypes(),
             avoiding: avoiding, kind: .generateMore, parentId: parent.id, batchIndex: batchIndex)
     }
 
