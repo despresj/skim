@@ -6,13 +6,25 @@ struct SkimApp: App {
     @State private var ideas: IdeasViewModel
     @Environment(\.scenePhase) private var scenePhase
 
-    init() {
-        // One local SQLite store, shared by the reader (read records, resume) and
-        // the Ideas scratchpad. Opened once at launch; `nil` if it fails, in which
-        // case both just run without persistence.
+    /// Build the full dependency graph: store → AI settings + key store + provider
+    /// → ComprehensionService → ReaderViewModel. Called once at launch; `nil`
+    /// service if the store fails to open (comprehension silently unavailable).
+    private static func makeViewModel() -> ReaderViewModel {
         let store = AppStore.open()
-        _viewModel = State(initialValue: ReaderViewModel(store: store))
-        _ideas = State(initialValue: IdeasViewModel(store: store))
+        let settings = AISettings()
+        let service = ComprehensionService(
+            store: store,
+            keyStore: KeychainAPIKeyStore(),
+            provider: OpenAIComprehensionProvider(),
+            settings: settings)
+        return ReaderViewModel(store: store, comprehension: service)
+    }
+
+    init() {
+        // ReaderViewModel owns its SQLite store and the comprehension service.
+        // IdeasViewModel opens the same database independently (SQLite WAL-safe).
+        _viewModel = State(initialValue: SkimApp.makeViewModel())
+        _ideas = State(initialValue: IdeasViewModel(store: AppStore.open()))
     }
 
     var body: some Scene {

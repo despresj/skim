@@ -122,6 +122,10 @@ final class ReaderViewModel {
     /// failed to open — every store call is optional so reading never depends on it.
     let store: SkimStore?
 
+    /// Drives optional post-read comprehension checks. `nil` if AI features aren't
+    /// wired (e.g. previews). Pre-generation is kicked off here on load.
+    let comprehension: ComprehensionService?
+
     /// The `read_items.id` of the record backing the current session, set when a
     /// read is recorded on load. Lets a jotted idea point back at this read, and
     /// drives position autosave. `nil` with nothing loaded.
@@ -131,8 +135,9 @@ final class ReaderViewModel {
     /// dismissed — true only if we were actively cruising when it opened.
     private var resumeCruiseAfterOverlay = false
 
-    init(store: SkimStore? = nil) {
+    init(store: SkimStore? = nil, comprehension: ComprehensionService? = nil) {
         self.store = store
+        self.comprehension = comprehension
         // Open at the user's preferred default speed so a cold start agrees with the
         // Settings choice rather than the hardcoded cruise constant.
         band = defaultCruisingBand
@@ -495,7 +500,11 @@ final class ReaderViewModel {
     /// current read. Empty text (or a missing store) records nothing and clears the
     /// id — so empty/failed imports never leave a row behind.
     private func recordLoadedRead(_ text: String, source: ReadSource, sourcePath: String?) {
-        guard let store, !tokens.isEmpty else { currentReadId = nil; return }
+        guard let store, !tokens.isEmpty else {
+            currentReadId = nil
+            comprehension?.handleReadLoaded(readId: nil, text: "", title: nil, wordCount: 0)
+            return
+        }
         let now = Date()
         let item = ReadItem(
             title: ReadItem.deriveTitle(from: text),
@@ -513,6 +522,8 @@ final class ReaderViewModel {
         )
         try? store.upsertReadItem(item)
         currentReadId = item.id
+        comprehension?.handleReadLoaded(readId: item.id, text: text,
+                                        title: item.title, wordCount: tokens.count)
     }
 
     func restart() {
@@ -568,6 +579,7 @@ final class ReaderViewModel {
     /// else," handing off to whatever you copy next.
     func clearText() {
         cancelPlayback()
+        comprehension?.cancelIfActive(readId: currentReadId)
         // The read stays on disk (resumable); we just let go of it here.
         saveProgress()
         tokens = []
