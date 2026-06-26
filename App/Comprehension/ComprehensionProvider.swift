@@ -1,19 +1,40 @@
 import Foundation
 
 /// Failures a comprehension generation can hit, each mapped to the exact calm
-/// copy the UI shows.
+/// copy the UI shows. The three pipeline failures are split apart deliberately —
+/// `apiError`, `decodeError`, and `validationFailed` used to be one opaque
+/// `badResponse`, which hid whether OpenAI rejected us, returned an unreadable
+/// body, or produced output that failed grounding. Each now logs its precise
+/// internal reason locally (see `ComprehensionService`/`OpenAIComprehensionProvider`)
+/// while keeping a user-safe message here.
 enum ComprehensionError: Error, Equatable {
-    case missingKey, invalidKey, network, rateLimit, badResponse, tooShort, cancelled
+    case missingKey
+    case invalidKey
+    case rateLimit
+    /// Couldn't reach OpenAI (transport) — DNS, offline, timeout.
+    case network
+    /// Reached OpenAI, but it returned a non-2xx we don't special-case (400/5xx…).
+    case apiError
+    /// 200, but the body wasn't the JSON/schema shape we decode.
+    case decodeError
+    /// Decoded fine, but failed SkimCore's structural/grounding validation.
+    case validationFailed
+    /// App-internal failure (no store, DB write failed, cap reached) — not the model's fault.
+    case internalError
+    case tooShort
+    case cancelled
 
     var userMessage: String {
         switch self {
-        case .missingKey:  return "Add an OpenAI API key to use comprehension checks."
-        case .invalidKey:  return "That API key did not work. Check it or replace it in Settings."
-        case .network:     return "Couldn't reach OpenAI. Check your connection and try again."
-        case .rateLimit:   return "OpenAI rejected the request, likely due to rate limits or quota on your API key."
-        case .badResponse: return "Couldn't build a clean check for this read."
-        case .tooShort:    return "This read is too short for a useful check."
-        case .cancelled:   return "Cancelled."
+        case .missingKey:       return "Add an OpenAI API key to use comprehension checks."
+        case .invalidKey:       return "That API key did not work. Check it or replace it in Settings."
+        case .rateLimit:        return "OpenAI rejected the request, likely due to rate limits or quota on your API key."
+        case .network, .apiError: return "Couldn't reach OpenAI or OpenAI rejected the request."
+        case .decodeError:      return "OpenAI returned a response Skim couldn't read."
+        case .validationFailed: return "Skim couldn't build a clean grounded check for this read."
+        case .internalError:    return "Something went wrong building this check."
+        case .tooShort:         return "This read is too short for a useful check."
+        case .cancelled:        return "Cancelled."
         }
     }
 }

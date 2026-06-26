@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 /// Orchestrates comprehension checks end-to-end on the main actor: decides
 /// eligibility, reads the key, hands generation to the provider off-main,
@@ -10,6 +11,7 @@ import Observation
     private let keyStore: APIKeyStore
     private let provider: ComprehensionQuestionProvider
     private let settings: AISettings
+    private let log = Logger(subsystem: "com.despresj.skim", category: "comprehension")
 
     /// In-flight pre-gen jobs keyed by readId, so we never double-generate and can
     /// cancel a job whose read was replaced before it persisted.
@@ -106,11 +108,11 @@ import Observation
 
     func generateMore(parent: ComprehensionCheck, text: String, title: String?)
         async -> Result<ComprehensionCheck, ComprehensionError> {
-        guard let store else { return .failure(.badResponse) }
+        guard let store else { return .failure(.internalError) }
         let existing = (try? store.checks(forReadId: parent.readId)) ?? []
         let total = existing.reduce(0) { $0 + $1.questions.count }
         let remaining = QuestionPlan.hardCap - total
-        guard remaining > 0 else { return .failure(.badResponse) }
+        guard remaining > 0 else { return .failure(.internalError) }
         let count = min(QuestionPlan.generateMoreCount, remaining)
         let batchIndex = (try? store.nextBatchIndex(parentCheckId: parent.id)) ?? 1
         let avoiding = existing.flatMap { $0.questions.map(\.question) }
@@ -149,16 +151,57 @@ import Observation
 
         // Validate against the FULL source (grounding must hold against real text).
         let problems = ComprehensionValidation.validate(draft, requestedCount: count, sourceText: text)
-        guard problems.isEmpty else { return .failure(.badResponse) }
+        guard problems.isEmpty else {
+            logValidationFailure(problems, draft: draft, model: settings.model)
+            return .failure(.validationFailed)
+        }
 
         let check = ComprehensionCheck(
             readId: readId, textHash: TextHash.of(text), model: settings.model,
             promptVersion: QuestionPlan.currentPromptVersion, generatedAt: Date(),
             kind: kind, parentCheckId: parentId, batchIndex: batchIndex,
             questions: draft.questions.map { ComprehensionQuestion(draft: $0) })
-        do { try store?.insertCheck(check) } catch { return .failure(.badResponse) }
+        do { try store?.insertCheck(check) }
+        catch {
+            log.error("comprehension: DB insertCheck failed: \(String(describing: error), privacy: .public)")
+            return .failure(.internalError)
+        }
         revision &+= 1
         return .success(check)
+    }
+
+    /// Log exactly *why* post-validation rejected the model's output, one line per
+    /// problem. For quote problems we log the failed `supportingQuote` (bounded) and
+    /// its normalized word length — that's generated output, not the user's source,
+    /// which is never logged.
+    private func logValidationFailure(
+        _ problems: [ComprehensionValidationError], draft: ComprehensionCheckDraft, model: String
+    ) {
+        let detail = problems.map { describe($0, draft: draft) }.joined(separator: " | ")
+        log.error("comprehension: VALIDATION failed (model=\(model, privacy: .public)) \(detail, privacy: .public)")
+    }
+
+    private func describe(_ p: ComprehensionValidationError, draft: ComprehensionCheckDraft) -> String {
+        switch p {
+        case .wrongCount(let got, let want):  return "wrongQuestionCount(got:\(got), want:\(want))"
+        case .emptyQuestion(let i):           return "missingField:question(#\(i))"
+        case .emptyChoice(let i, let key):    return "missingField:choice.\(key.rawValue)(#\(i))"
+        case .duplicateChoices(let i):        return "duplicateChoices(#\(i))"
+        case .emptyExplanation(let i):        return "missingField:explanation(#\(i))"
+        case .quoteWrongLength(let i, let w):
+            let kind = w < ComprehensionValidation.minQuoteWords ? "tooShort" : "tooLong"
+            return "supportingQuote.\(kind)(#\(i), words:\(w), quote=\(boundedQuote(draft, i)))"
+        case .quoteNotGrounded(let i):
+            return "supportingQuote.notFoundInSource(#\(i), quote=\(boundedQuote(draft, i)))"
+        case .duplicateQuestion(let a, let b): return "duplicateQuestion(#\(a),#\(b))"
+        }
+    }
+
+    /// The offending quote, bounded so a log line can't balloon.
+    private func boundedQuote(_ draft: ComprehensionCheckDraft, _ i: Int) -> String {
+        guard draft.questions.indices.contains(i) else { return "<none>" }
+        let q = draft.questions[i].supportingQuote
+        return "\"\(q.count > 160 ? String(q.prefix(160)) + "…" : q)\""
     }
 
     // MARK: Answers / dispute / completion

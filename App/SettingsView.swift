@@ -166,15 +166,18 @@ struct SettingsView: View {
     // MARK: AI features
 
     private var aiRow: some View {
-        SettingRow(title: "AI features",
-                   subtitle: "Optional comprehension checks with your own OpenAI key.") {
-            Button { showingAI = true } label: {
+        // Pure navigation row — make the whole row the hit target, not the tiny
+        // chevron. The other rows keep their own controls; this one just drills in.
+        Button { showingAI = true } label: {
+            SettingRow(title: "AI features",
+                       subtitle: "Optional comprehension checks with your own OpenAI key.") {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.readingMuted)
             }
-            .buttonStyle(.plain)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 }
 

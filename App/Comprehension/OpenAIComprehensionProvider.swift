@@ -1,22 +1,29 @@
 import Foundation
+import os
 
 /// Talks to OpenAI Chat Completions with Structured Outputs (strict json_schema),
 /// so the response is guaranteed-shaped JSON we decode straight into a
-/// `ComprehensionCheckDraft`. On a decode/validation/transport hiccup it re-asks
-/// once with a stricter instruction — never a free-form JSON repair. Sendable and
-/// stateless apart from a URLSession, so it runs off the main actor.
+/// `ComprehensionCheckDraft`. On a decode/transport hiccup it re-asks once with a
+/// stricter instruction — never a free-form JSON repair. Sendable and stateless
+/// apart from a URLSession, so it runs off the main actor.
+///
+/// Transport, API-reject, and unreadable-body are kept as distinct errors and
+/// logged precisely (status + redacted body / decode context) so a failure is
+/// observable. Authorization headers and the request body are never logged.
 final class OpenAIComprehensionProvider: ComprehensionQuestionProvider {
-    static let defaultModel = "gpt-4o-mini"
+    static let defaultModel = "gpt-5.5"
     private let endpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
     private let session: URLSession
+    private let log = Logger(subsystem: "com.despresj.skim", category: "comprehension")
 
     init(session: URLSession = .shared) { self.session = session }
 
     func generate(_ request: ComprehensionRequest) async throws -> ComprehensionCheckDraft {
         do {
             return try await send(request, stricter: false)
-        } catch let e as ComprehensionError where e == .badResponse {
+        } catch let e as ComprehensionError where e == .apiError || e == .decodeError {
             // One schema-constrained regeneration retry (clean re-ask, not a repair).
+            log.notice("comprehension: retrying once after \(String(describing: e), privacy: .public)")
             return try await send(request, stricter: true)
         }
     }
@@ -46,20 +53,53 @@ final class OpenAIComprehensionProvider: ComprehensionQuestionProvider {
         } catch {
             throw ComprehensionError.network
         }
-        guard let http = response as? HTTPURLResponse else { throw ComprehensionError.network }
+        guard let http = response as? HTTPURLResponse else {
+            log.error("comprehension: response was not HTTP")
+            throw ComprehensionError.network
+        }
+        let body = String(data: data, encoding: .utf8) ?? "<\(data.count) non-utf8 bytes>"
         switch http.statusCode {
         case 200: break
-        case 401, 403: throw ComprehensionError.invalidKey
-        case 429: throw ComprehensionError.rateLimit
-        default: throw ComprehensionError.badResponse
+        case 401, 403:
+            log.error("comprehension: auth rejected HTTP \(http.statusCode, privacy: .public) body=\(self.redact(body), privacy: .public)")
+            throw ComprehensionError.invalidKey
+        case 429:
+            log.error("comprehension: rate limited HTTP 429 body=\(self.redact(body), privacy: .public)")
+            throw ComprehensionError.rateLimit
+        default:
+            // The big one: a non-2xx we don't special-case (400 bad model/schema, 5xx…).
+            log.error("comprehension: API error HTTP \(http.statusCode, privacy: .public) model=\(request.model, privacy: .public) body=\(self.redact(body), privacy: .public)")
+            throw ComprehensionError.apiError
         }
 
-        guard let completion = try? JSONDecoder().decode(ChatCompletion.self, from: data),
-              let content = completion.choices.first?.message.content,
-              let contentData = content.data(using: .utf8),
+        // 200, but the envelope / structured content may still not decode.
+        guard let completion = try? JSONDecoder().decode(ChatCompletion.self, from: data) else {
+            log.error("comprehension: decode FAILED on chat envelope; snippet=\(self.redact(body, max: 300), privacy: .public)")
+            throw ComprehensionError.decodeError
+        }
+        guard let content = completion.choices.first?.message.content else {
+            log.error("comprehension: decode FAILED — no message content (likely a model refusal)")
+            throw ComprehensionError.decodeError
+        }
+        guard let contentData = content.data(using: .utf8),
               let draft = try? JSONDecoder().decode(ComprehensionCheckDraft.self, from: contentData)
-        else { throw ComprehensionError.badResponse }
+        else {
+            log.error("comprehension: decode FAILED on structured content; snippet=\(self.redact(content, max: 300), privacy: .public)")
+            throw ComprehensionError.decodeError
+        }
         return draft
+    }
+
+    /// Bound a server/response string for logging and strip anything shaped like an
+    /// OpenAI key. We only ever pass *response* bodies here — never the request, the
+    /// Authorization header, or the source text.
+    private func redact(_ s: String, max: Int = 600) -> String {
+        var t = s
+        if let rx = try? NSRegularExpression(pattern: "sk-[A-Za-z0-9_-]{8,}") {
+            t = rx.stringByReplacingMatches(
+                in: t, range: NSRange(t.startIndex..., in: t), withTemplate: "sk-***")
+        }
+        return t.count > max ? String(t.prefix(max)) + "…[truncated]" : t
     }
 
     private func body(for r: ComprehensionRequest, stricter: Bool) -> ChatRequest {
