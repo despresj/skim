@@ -26,6 +26,7 @@ struct SettingsGear: View {
 struct SettingsView: View {
     let viewModel: ReaderViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showingAI = false
 
     /// The default starting band, derived from the persisted default WPM.
     private var band: SpeedBand { SpeedBand(wpm: viewModel.defaultWpm) }
@@ -42,9 +43,15 @@ struct SettingsView: View {
                     handRow
                     speedRow
                     cruiseRow
+                    aiRow
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 22)
+                .sheet(isPresented: $showingAI) {
+                    if let service = viewModel.comprehension {
+                        AIFeaturesView(service: service, settings: service.settingsForUI)
+                    }
+                }
 
                 Spacer(minLength: 0)
             }
@@ -153,6 +160,20 @@ struct SettingsView: View {
             ))
             .labelsHidden()
             .tint(Color.readingAccent)
+        }
+    }
+
+    // MARK: AI features
+
+    private var aiRow: some View {
+        SettingRow(title: "AI features",
+                   subtitle: "Optional comprehension checks with your own OpenAI key.") {
+            Button { showingAI = true } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.readingMuted)
+            }
+            .buttonStyle(.plain)
         }
     }
 }
